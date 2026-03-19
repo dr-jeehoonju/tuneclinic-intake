@@ -341,10 +341,10 @@ export default function IntakePage() {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3 shrink-0">
         <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-          <span className="text-amber-700 font-bold text-base">튠</span>
+          <span className="text-amber-700 font-bold text-[11px] leading-tight">에이전<br/>튠</span>
         </div>
         <div>
-          <h1 className="text-base font-bold text-slate-900">에이전트 튠</h1>
+          <h1 className="text-base font-bold text-slate-900">에이전튠 <span className="text-xs font-normal text-slate-400">Agentune</span></h1>
           <p className="text-xs text-slate-500">
             {isTerminal
               ? pageState === "complete" ? "상담 완료" : "에스컬레이션"

@@ -718,7 +718,7 @@ async function notifyPhysician(sessionId: string, urgency: string, flags: string
   }
 
   const flagText = flags.length > 0 ? `\nFlags: ${flags.join(", ")}` : "\nFlags: 없음";
-  const text = `[에이전트 튠] ${urgency}\nSession: ${sessionId}${patientInfo}${flagText}`;
+  const text = `[에이전튠] ${urgency}\nSession: ${sessionId}${patientInfo}${flagText}`;
 
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
