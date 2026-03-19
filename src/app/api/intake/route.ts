@@ -60,7 +60,14 @@ async function createSession(): Promise<NextResponse> {
   if (patientErr || !patient) {
     console.error("Failed to create patient:", patientErr);
     return NextResponse.json(
-      { error: "Failed to create patient" },
+      {
+        error: "Failed to create patient",
+        detail: patientErr?.message,
+        hint: patientErr?.hint,
+        code: patientErr?.code,
+        supabase_url: process.env.SUPABASE_URL ? "set" : "missing",
+        supabase_key: process.env.SUPABASE_SERVICE_KEY ? "set" : "missing",
+      },
       { status: 500 }
     );
   }
