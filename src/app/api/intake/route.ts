@@ -25,7 +25,7 @@ import type {
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 const MAX_HISTORY = 40;
-const DEEP_GATHER_MAX = 3;
+const DEEP_GATHER_MAX = 4;
 
 export async function POST(req: NextRequest) {
   try {
@@ -126,6 +126,31 @@ async function handleQuickCollect(
 
   const s = session as IntakeSession;
 
+  // Safety check on chief complaint
+  const safety = checkSafetyKeywords(data.chief_complaint);
+  let safetyInjection = "";
+  if (safety.level === "emergency") {
+    await saveMessage(sessionId, "patient", data.chief_complaint, "greeting", 0);
+    await transitionState(sessionId, "greeting", "escalated", 0);
+    const seq = await getNextSequenceNumber(sessionId);
+    await saveMessage(sessionId, "assistant", EMERGENCY_RESPONSE, "escalated", seq);
+    await notifyPhysician(sessionId, "EMERGENCY", safety.matchedKeywords);
+    return NextResponse.json({
+      reply: EMERGENCY_RESPONSE,
+      state: "escalated",
+      session_id: sessionId,
+      is_complete: false,
+      is_escalated: true,
+    } as ChatResponse);
+  }
+  if (safety.level === "flag") {
+    safetyInjection = buildFlagInjection(safety.matchedKeywords);
+    await logAuditEvent("safety_keyword_detected", "agent_intake", "intake_session", sessionId, {
+      matched_keywords: safety.matchedKeywords,
+      source: "chief_complaint",
+    });
+  }
+
   // Build fields collected from quick collect data
   const fieldsCollected: string[] = ["chief_complaint", "skin_concerns"];
   if (data.age_range) fieldsCollected.push("age_range");
@@ -188,12 +213,15 @@ async function handleQuickCollect(
   });
 
   // Call Claude for first deep_gather response
-  const systemPrompt = buildSystemPrompt(
+  let systemPrompt = buildSystemPrompt(
     "deep_gather",
     fieldsCollected,
     fieldsMissing,
     quickSummary
   );
+  if (safetyInjection) {
+    systemPrompt += safetyInjection;
+  }
 
   const claudeResponse = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",

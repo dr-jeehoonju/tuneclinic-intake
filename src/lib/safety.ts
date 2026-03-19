@@ -40,8 +40,16 @@ const FLAG_KEYWORDS = [
   "멍이 안 빠",
   "멍이 심",
   "빨갛게",
+  "빨간",
+  "빨개",
+  "붉은",
+  "붉어",
   "발적",
   "열감",
+  "안 빠져",
+  "안 빠지",
+  "안빠져",
+  "안빠지",
   "통증이 심",
   "아파서",
   "너무 아파",
@@ -69,6 +77,9 @@ const FLAG_KEYWORDS = [
   "딱딱",
   "필러가 이동",
   "울퉁불퉁",
+  "시술 후",
+  "시술후",
+  "받았는데",
 ];
 
 export function checkSafetyKeywords(message: string): {
