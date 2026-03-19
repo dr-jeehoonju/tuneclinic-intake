@@ -391,18 +391,20 @@ async function handleMessage(
 
 function buildQuickSummary(data: QuickCollectData): string {
   const lines: string[] = [];
-  lines.push(`주 호소: ${data.chief_complaint}`);
+  lines.push(`- 주 호소: ${data.chief_complaint}`);
   if (data.skin_concerns?.length > 0)
-    lines.push(`피부 고민: ${data.skin_concerns.join(", ")}`);
+    lines.push(`- 피부 고민: ${data.skin_concerns.join(", ")}`);
   if (data.treatment_interests?.length > 0)
-    lines.push(`관심 시술: ${data.treatment_interests.join(", ")}`);
-  if (data.age_range) lines.push(`연령대: ${data.age_range}`);
-  if (data.gender) lines.push(`성별: ${data.gender}`);
+    lines.push(`- 관심 시술: ${data.treatment_interests.join(", ")}`);
+  else lines.push(`- 관심 시술: 특별히 없음`);
+  if (data.age_range) lines.push(`- 연령대: ${data.age_range} (확인 완료 — 다시 묻지 마세요)`);
+  if (data.gender) lines.push(`- 성별: ${data.gender} (확인 완료 — 다시 묻지 마세요)`);
   if (data.previous_treatments)
-    lines.push(`이전 시술 경험: ${data.previous_treatments}`);
-  if (data.retinoid_use) lines.push(`레티놀/비타민A 사용: ${data.retinoid_use}`);
+    lines.push(`- 이전 시술 경험: ${data.previous_treatments} (확인 완료 — 유무만 확인됨, "있음"이면 상세를 물어볼 수 있음)`);
+  if (data.retinoid_use)
+    lines.push(`- 레티놀/비타민A 사용: ${data.retinoid_use} (확인 완료 — 다시 묻지 마세요)`);
   if (data.pregnancy_status)
-    lines.push(`임신/수유: ${data.pregnancy_status}`);
+    lines.push(`- 임신/수유: ${data.pregnancy_status} (확인 완료 — 다시 묻지 마세요)`);
   return lines.join("\n");
 }
 
