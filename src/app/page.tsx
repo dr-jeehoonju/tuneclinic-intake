@@ -274,6 +274,26 @@ export default function IntakePage() {
     }
   }
 
+  function switchLang(newLang: Lang) {
+    if (newLang === lang) return;
+    setLang(newLang);
+    setMessages([]);
+    setSessionId(null);
+    setQuickStep(0);
+    setQuickData({});
+    setMultiSelected([]);
+    setTextInput("");
+    setInput("");
+    setPageState("loading");
+    startSession(newLang);
+  }
+
+  const LANG_OPTIONS: { value: Lang; label: string }[] = [
+    { value: "ko", label: "한국어" },
+    { value: "en", label: "EN" },
+    { value: "ja", label: "日本語" },
+  ];
+
   const isTerminal = pageState === "complete" || pageState === "escalated";
   const isChatMode = pageState === "deep_gather" || pageState === "confirmation";
   const isGreeting = pageState === "chief_complaint" && messages.length === 1;
@@ -291,7 +311,7 @@ export default function IntakePage() {
             <rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="8.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><circle cx="15.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><path d="M8 11V9a4 4 0 0 1 8 0v2" /><line x1="12" y1="2" x2="12" y2="5" /><circle cx="12" cy="2" r="1" fill="currentColor" stroke="none" />
           </svg>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate">{t.headerTitle} <span className="text-[11px] sm:text-xs font-normal text-slate-400">Agentune</span></h1>
           <p className="text-[11px] sm:text-xs text-slate-500 truncate">
             {isTerminal
@@ -301,6 +321,18 @@ export default function IntakePage() {
                 : t.headerSubtitle}
           </p>
         </div>
+        <select
+          value={lang}
+          onChange={(e) => switchLang(e.target.value as Lang)}
+          className="shrink-0 text-xs sm:text-sm text-slate-600 bg-slate-50 border border-slate-200
+            rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400
+            cursor-pointer appearance-none text-center"
+          style={{ fontSize: "16px", minWidth: "4.5rem" }}
+        >
+          {LANG_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </header>
 
       {/* Progress bar for quick_collect */}
