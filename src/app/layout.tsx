@@ -11,6 +11,12 @@ const notoSansKr = Noto_Sans_KR({
 export const metadata: Metadata = {
   title: "압구정튠의원 상담",
   description: "대면 상담 전 피부 고민을 미리 정리해 드립니다.",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    viewportFit: "cover",
+  },
 };
 
 export default function RootLayout({
@@ -20,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${notoSansKr.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-slate-50 font-sans">
+      <body className="h-full overflow-hidden bg-slate-50 font-sans">
         {children}
       </body>
     </html>

@@ -281,15 +281,16 @@ export default function IntakePage() {
   const t = UI_STRINGS[lang];
 
   return (
-    <div className="flex flex-col h-screen max-w-2xl mx-auto">
+    <div className="flex flex-col h-full max-w-2xl mx-auto">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3 shrink-0">
-        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-          <span className="text-amber-700 font-bold text-[11px] leading-tight">에이전<br/>튠</span>
+      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 shrink-0"
+        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+          <span className="text-amber-700 font-bold text-[10px] sm:text-[11px] leading-tight">에이전<br/>튠</span>
         </div>
-        <div>
-          <h1 className="text-base font-bold text-slate-900">{t.headerTitle} <span className="text-xs font-normal text-slate-400">Agentune</span></h1>
-          <p className="text-xs text-slate-500">
+        <div className="min-w-0">
+          <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate">{t.headerTitle} <span className="text-[11px] sm:text-xs font-normal text-slate-400">Agentune</span></h1>
+          <p className="text-[11px] sm:text-xs text-slate-500 truncate">
             {isTerminal
               ? pageState === "complete" ? t.headerSubtitleComplete : t.headerSubtitleEscalated
               : pageState === "quick_collect"
@@ -301,7 +302,7 @@ export default function IntakePage() {
 
       {/* Progress bar for quick_collect */}
       {pageState === "quick_collect" && (
-        <div className="bg-white border-b border-slate-100 px-6 py-2 shrink-0">
+        <div className="bg-white border-b border-slate-100 px-4 sm:px-6 py-1.5 sm:py-2 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-slate-400 shrink-0">
               {quickStep + 1} / {quickSteps.length}
@@ -318,14 +319,14 @@ export default function IntakePage() {
 
       {/* Chat area (visible in chief_complaint, deep_gather, confirmation, terminal) */}
       {pageState !== "quick_collect" && (
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6 space-y-3 sm:space-y-4 overscroll-contain">
           {messages.map((msg, i) => (
             <div
               key={i}
               className={`flex ${msg.role === "patient" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                className={`max-w-[85%] sm:max-w-[80%] rounded-2xl px-3.5 sm:px-4 py-2.5 sm:py-3 text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap ${
                   msg.role === "patient"
                     ? "bg-amber-600 text-white rounded-br-md"
                     : "bg-white text-slate-800 border border-slate-200 rounded-bl-md shadow-sm"
@@ -352,20 +353,20 @@ export default function IntakePage() {
 
       {/* Quick collect steps (Typeform style) */}
       {pageState === "quick_collect" && currentStep && (
-        <div className="flex-1 flex items-center justify-center px-6 overflow-hidden">
-          <div className="w-full max-w-md max-h-full flex flex-col">
-            <h2 className="text-lg font-bold text-slate-900 mb-6 text-center shrink-0">
+        <div className="flex-1 flex flex-col px-4 sm:px-6 py-4 sm:py-6 overflow-hidden">
+          <div className="w-full max-w-md mx-auto flex flex-col flex-1 min-h-0">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 mb-4 sm:mb-6 text-center shrink-0">
               {currentStep.question}
             </h2>
 
             {currentStep.type === "single" && (
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3 overflow-y-auto flex-1 overscroll-contain">
                 {currentStep.options.map((opt) => (
                   <button
                     key={opt.value}
                     onClick={() => handleSingleSelect(currentStep.id, opt.value)}
-                    className="w-full px-5 py-4 rounded-xl border-2 border-slate-200 bg-white
-                      text-sm font-medium text-slate-700
+                    className="w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl border-2 border-slate-200 bg-white
+                      text-[13px] sm:text-sm font-medium text-slate-700
                       hover:border-amber-400 hover:bg-amber-50 hover:text-amber-800
                       active:scale-[0.98] transition-all"
                   >
@@ -378,7 +379,7 @@ export default function IntakePage() {
             {currentStep.type === "text" && (
               <form
                 onSubmit={(e) => { e.preventDefault(); submitTextInput(currentStep.id); }}
-                className="space-y-4"
+                className="space-y-3 sm:space-y-4"
               >
                 <input
                   type={currentStep.id === "patient_phone" ? "tel" : "text"}
@@ -386,15 +387,15 @@ export default function IntakePage() {
                   onChange={(e) => setTextInput(e.target.value)}
                   placeholder={currentStep.placeholder || ""}
                   autoFocus
-                  className="w-full px-5 py-4 rounded-xl border-2 border-slate-200 bg-white
-                    text-sm text-slate-700 placeholder:text-slate-400
+                  className="w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl border-2 border-slate-200 bg-white
+                    text-[13px] sm:text-sm text-slate-700 placeholder:text-slate-400
                     focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400
                     transition-all"
                 />
                 <button
                   type="submit"
                   disabled={!textInput.trim()}
-                  className="w-full px-5 py-3 rounded-xl bg-amber-600 text-white text-sm font-bold
+                  className="w-full px-4 py-3 rounded-xl bg-amber-600 text-white text-[13px] sm:text-sm font-bold
                     hover:bg-amber-700 disabled:opacity-40 disabled:hover:bg-amber-600 transition-all"
                 >
                   {t.nextButton}
@@ -403,29 +404,29 @@ export default function IntakePage() {
             )}
 
             {currentStep.type === "multi" && (
-              <div className="flex flex-col min-h-0">
-                <div className="space-y-2 overflow-y-auto flex-1 pb-2">
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="space-y-1.5 sm:space-y-2 overflow-y-auto flex-1 pb-2 overscroll-contain">
                 {currentStep.options.map((opt) => {
                   const selected = multiSelected.includes(opt.value);
                   return (
                     <button
                       key={opt.value}
                       onClick={() => toggleMultiSelect(opt.value)}
-                      className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-medium
+                      className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border-2 text-[13px] sm:text-sm font-medium
                         active:scale-[0.98] transition-all ${
                           selected
                             ? "border-amber-500 bg-amber-50 text-amber-800"
                             : "border-slate-200 bg-white text-slate-700 hover:border-amber-400 hover:bg-amber-50"
                         }`}
                     >
-                      <span className="flex items-center gap-3">
+                      <span className="flex items-center gap-2.5 sm:gap-3">
                         <span
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
+                          className={`w-4.5 h-4.5 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center shrink-0 ${
                             selected ? "border-amber-500 bg-amber-500" : "border-slate-300"
                           }`}
                         >
                           {selected && (
-                            <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                            <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" viewBox="0 0 12 12" fill="none">
                               <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           )}
@@ -437,12 +438,13 @@ export default function IntakePage() {
                 })}
                 </div>
 
-                <div className="flex gap-3 pt-3 shrink-0">
+                <div className="flex gap-2 sm:gap-3 pt-2 sm:pt-3 shrink-0"
+                  style={{ paddingBottom: "max(0.25rem, env(safe-area-inset-bottom))" }}>
                   {currentStep.allowSkip && (
                     <button
                       onClick={() => skipMultiSelect(currentStep.id)}
-                      className="flex-1 px-5 py-3 rounded-xl border-2 border-slate-200
-                        text-sm text-slate-500 hover:border-slate-300 transition-all"
+                      className="flex-1 px-4 py-2.5 sm:py-3 rounded-xl border-2 border-slate-200
+                        text-[13px] sm:text-sm text-slate-500 hover:border-slate-300 transition-all"
                     >
                       {currentStep.skipLabel || t.skipLabel}
                     </button>
@@ -450,7 +452,7 @@ export default function IntakePage() {
                   <button
                     onClick={() => confirmMultiSelect(currentStep.id)}
                     disabled={multiSelected.length === 0}
-                    className="flex-1 px-5 py-3 rounded-xl bg-amber-600 text-white text-sm font-bold
+                    className="flex-1 px-4 py-2.5 sm:py-3 rounded-xl bg-amber-600 text-white text-[13px] sm:text-sm font-bold
                       hover:bg-amber-700 disabled:opacity-40 disabled:hover:bg-amber-600 transition-all"
                   >
                     {t.nextButton}
@@ -466,7 +468,8 @@ export default function IntakePage() {
       {(pageState === "chief_complaint" || isChatMode) && !isTerminal && (
         <form
           onSubmit={pageState === "chief_complaint" ? submitChiefComplaint : sendMessage}
-          className="border-t border-slate-200 bg-white px-4 py-3 shrink-0"
+          className="border-t border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-3 shrink-0"
+          style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
         >
           <div className="flex items-end gap-2 max-w-2xl mx-auto">
             <textarea
@@ -481,24 +484,24 @@ export default function IntakePage() {
               }
               disabled={sending}
               rows={1}
-              className="flex-1 resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm
+              className="flex-1 resize-none rounded-xl border border-slate-300 px-3 sm:px-4 py-2.5 sm:py-3 text-[13px] sm:text-sm
                 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent
                 disabled:opacity-50 disabled:bg-slate-50"
-              style={{ maxHeight: "120px" }}
+              style={{ maxHeight: "100px" }}
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
                 target.style.height = "auto";
-                target.style.height = Math.min(target.scrollHeight, 120) + "px";
+                target.style.height = Math.min(target.scrollHeight, 100) + "px";
               }}
             />
             <button
               type="submit"
               disabled={sending || !input.trim()}
-              className="shrink-0 w-10 h-10 rounded-full bg-amber-600 text-white
+              className="shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-600 text-white
                 flex items-center justify-center hover:bg-amber-700
                 disabled:opacity-40 disabled:hover:bg-amber-600 transition-colors"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 sm:w-5 sm:h-5">
                 <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
               </svg>
             </button>
@@ -507,8 +510,9 @@ export default function IntakePage() {
       )}
 
       {isTerminal && (
-        <div className="border-t border-slate-200 bg-white px-6 py-4 text-center shrink-0">
-          <p className="text-sm text-slate-500">
+        <div className="border-t border-slate-200 bg-white px-4 sm:px-6 py-3 sm:py-4 text-center shrink-0"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+          <p className="text-[13px] sm:text-sm text-slate-500">
             {pageState === "complete" ? t.completionMessage : t.escalationMessage}
           </p>
         </div>
