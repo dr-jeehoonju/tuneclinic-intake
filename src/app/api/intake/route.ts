@@ -285,7 +285,7 @@ async function handleMessage(
     quickSummary = await getQuickSummaryFromHistory(sessionId);
   }
 
-  let systemPrompt = buildSystemPrompt(currentState, fieldsCollected, fieldsMissing, quickSummary);
+  let systemPrompt = buildSystemPrompt(currentState, fieldsCollected, fieldsMissing, quickSummary, newExchange);
 
   if (safety.level === "flag") {
     systemPrompt += buildFlagInjection(safety.matchedKeywords);
@@ -381,6 +381,22 @@ async function handleMessage(
     textBlock && textBlock.type === "text"
       ? textBlock.text
       : "죄송합니다, 응답을 생성하지 못했습니다.";
+
+  // Hard cap: if in confirmation and Claude didn't call tool, force complete
+  if (currentState === "confirmation") {
+    const forceReply = "감사합니다. 원장님이 상담 전에 케이스를 확인하실 예정입니다.\n좋은 상담이 되도록 준비하겠습니다.";
+    await forceCompleteIntake(sessionId, s.patient_id, fieldsCollected, quickSummary || "");
+    const seq = await getNextSequenceNumber(sessionId);
+    await saveMessage(sessionId, "assistant", forceReply, "complete", seq);
+
+    return NextResponse.json({
+      reply: forceReply,
+      state: "complete",
+      session_id: sessionId,
+      is_complete: true,
+      is_escalated: false,
+    } as ChatResponse);
+  }
 
   const seq = await getNextSequenceNumber(sessionId);
   await saveMessage(sessionId, "assistant", assistantReply, currentState, seq);
@@ -564,6 +580,56 @@ async function logAuditEvent(
   } catch (err) {
     console.error("Audit log error (non-blocking):", err);
   }
+}
+
+async function forceCompleteIntake(
+  sessionId: string,
+  patientId: string,
+  fieldsCollected: string[],
+  quickSummary: string
+) {
+  const lines = quickSummary.split("\n").map((l) => l.replace(/^-\s*/, "").replace(/\(확인 완료.*?\)/g, "").trim());
+  const chiefComplaint = lines.find((l) => l.startsWith("주 호소:"))?.replace("주 호소: ", "") || "";
+  const skinConcerns = lines.find((l) => l.startsWith("피부 고민:"))?.replace("피부 고민: ", "").split(", ") || [];
+  const treatmentInterests = lines.find((l) => l.startsWith("관심 시술:"))?.replace("관심 시술: ", "").split(", ") || [];
+  const ageRange = lines.find((l) => l.startsWith("연령대:"))?.replace("연령대: ", "") || "";
+  const gender = lines.find((l) => l.startsWith("성별:"))?.replace("성별: ", "") || "";
+  const previousTreatments = lines.find((l) => l.startsWith("이전 시술 경험:"))?.replace("이전 시술 경험: ", "") || "";
+  const pregnancyStatus = lines.find((l) => l.startsWith("임신/수유:"))?.replace("임신/수유: ", "") || "";
+
+  const history = await getConversationHistory(sessionId);
+  const patientMessages = history.filter((m) => m.role === "patient").map((m) => m.content_original);
+  const fullNarrative = patientMessages.join(" | ");
+
+  const intakeData: CompleteIntakeInput = {
+    chief_complaint: chiefComplaint || fullNarrative.slice(0, 200),
+    skin_concerns: skinConcerns,
+    treatment_interests: treatmentInterests.filter((t) => t !== "특별히 없음"),
+    age_range: ageRange,
+    gender: gender === "여성" ? "female" : gender === "남성" ? "male" : "unknown",
+    previous_treatments: previousTreatments,
+    pregnancy_status: pregnancyStatus === "임신 중" ? "pregnant" : pregnancyStatus === "수유 중" ? "breastfeeding" : "not_pregnant",
+    fields_collected: fieldsCollected,
+    fields_missing: computeMissingFields(fieldsCollected),
+    risk_flags: [],
+    urgency: "normal",
+  };
+
+  await transitionState(sessionId, "confirmation", "structuring", 99);
+  await createCase(sessionId, patientId, intakeData);
+  await transitionState(sessionId, "structuring", "complete", 99);
+
+  await supabase
+    .from("intake_sessions")
+    .update({
+      current_state: "complete",
+      fields_collected: intakeData.fields_collected,
+      fields_missing: intakeData.fields_missing || [],
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", sessionId);
+
+  await notifyPhysician(sessionId, "NORMAL", []);
 }
 
 async function notifyPhysician(sessionId: string, urgency: string, flags: string[]) {
