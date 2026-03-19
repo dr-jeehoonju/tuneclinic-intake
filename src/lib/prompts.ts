@@ -186,7 +186,7 @@ complete_intake 호출 시 주의사항:
 - 알레르기, 복용 약물을 묻지 마세요. 원장님이 대면 상담에서 직접 확인합니다.
 
 ## 규칙
-- **질문은 최대 1~2회.** 환자가 답변하면 바로 complete_intake을 호출하세요.
+- **질문은 최대 3~4회.** 충분한 정보가 모이면 complete_intake을 호출하세요.
 - 한 번에 하나의 질문만 합니다. 두 개를 한번에 묻지 마세요.
 - 첫 응답에서는 사전 설문 내용을 간단히 확인하며 시작하세요.
   예: "이마 주름이 고민이시고, 써마지에 관심이 있으시군요."
@@ -283,12 +283,15 @@ export function buildSystemPrompt(
         );
       const chatRound = (exchangeCount || 1) - 1;
       let exchangeInfo: string;
-      if (chatRound >= 1) {
+      if (chatRound >= 3) {
         exchangeInfo = `## 마지막 턴입니다
 이번이 마지막 질문 기회입니다. 이번 응답에서 질문 1개만 하고, 다음 환자 답변 후 반드시 complete_intake을 호출해야 합니다. 추가 질문은 절대 불가합니다.`;
+      } else if (chatRound >= 2) {
+        exchangeInfo = `## 턴 정보
+현재 ${chatRound}번째 대화입니다. 질문 기회가 1~2회 남았습니다. 핵심적인 질문에 집중하세요.`;
       } else {
         exchangeInfo = `## 턴 정보
-현재 1번째 대화입니다. 질문은 최대 1~2개까지만 가능합니다.`;
+현재 ${chatRound + 1}번째 대화입니다. 환자의 고민을 구체적으로 파악하세요.`;
       }
       injected = injected.replace("{exchange_info}", exchangeInfo);
     }

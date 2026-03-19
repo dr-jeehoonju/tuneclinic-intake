@@ -25,7 +25,7 @@ import type {
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 const MAX_HISTORY = 40;
-const DEEP_GATHER_MAX = 4;
+const DEEP_GATHER_MAX = 6;
 
 export async function POST(req: NextRequest) {
   try {
