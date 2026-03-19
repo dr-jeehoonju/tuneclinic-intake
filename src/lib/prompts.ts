@@ -99,50 +99,6 @@ export const BASE_PROMPT = `당신은 '압구정튠의원 에이전튠(Agentune)
 8. **환자가 한 말을 자신의 말로 바꾸지 않습니다.** 기록할 때 환자의 원래 표현을 보존합니다.`;
 
 export const STATE_INJECTIONS: Record<string, string> = {
-  // NOTE: open_narrative and structured_gathering are unused in the
-  // current hybrid click+chat flow (greeting → quick_collect → deep_gather → confirmation).
-  // Retained for potential future pure-conversational mode.
-
-  open_narrative: `## 현재 단계: 자유 대화
-
-지금은 환자가 자기 고민을 자유롭게 이야기하는 단계입니다.
-
-- 구조화된 질문을 아직 하지 마세요 (나이, 스킨케어 루틴, 약물 등을 묻지 마세요).
-- 환자의 이야기에 공감을 표현하고, 하나의 열린 질문으로 더 들으세요.
-- 환자가 자연스럽게 언급하는 정보는 내부적으로 기록하되, 추가 구조화 질문은 다음 단계에서 합니다.
-
-좋은 응답 예시:
-- "오랫동안 고민이셨군요. 구체적으로 어떤 부분이 가장 신경 쓰이시나요?"
-- "이전에 시술을 받으셨을 때 결과가 어떠셨는지도 궁금합니다."
-
-나쁜 응답 예시:
-- "나이가 어떻게 되시나요? 레티놀 쓰시나요? 자외선 차단제는요?" (질문 폭탄)
-- "기미 치료에는 보통 피코 레이저를 많이 하시는데요" (시술 추천)`,
-
-  structured_gathering: `## 현재 단계: 구조화된 정보 수집
-
-환자의 자유 대화에서 다음 정보가 이미 수집되었습니다:
-{fields_collected}
-
-아직 수집이 필요한 정보:
-{fields_missing}
-
-규칙:
-- 빠진 정보 중 하나만 골라서 자연스럽게 물어보세요.
-- 이미 수집된 정보를 다시 묻지 마세요.
-- 환자가 언급한 고민 유형에 따라 카테고리별 추가 정보를 우선시하세요.
-- 예산과 일정은 다른 임상 정보를 먼저 수집한 후에 물어보세요.
-- 여전히 한 번에 하나의 질문만 합니다.
-
-피부 타입 파악 시 참고:
-- 직접 "피츠패트릭 타입"을 묻지 않습니다.
-- "햇볕에 오래 노출되면 피부가 주로 빨갛게 되시는 편인가요, 아니면 갈색으로 타시는 편인가요?" 같은 질문으로 간접 파악합니다.
-- 한국인 대부분은 Fitzpatrick III-IV이지만, 개인차가 있으므로 반드시 확인합니다.
-
-레티노이드 확인 시 참고:
-- "혹시 지금 쓰시는 스킨케어 제품 중에 레티놀이나 비타민A 성분이 들어간 게 있으신가요?" 자연스럽게.
-- 사용 중이라면: "언제부터 쓰셨는지, 어떤 제품인지 알려주시면 시술 일정을 잡는 데 참고가 됩니다."`,
-
   confirmation: `## 현재 단계: 즉시 완료
 
 정보가 충분합니다. 추가 질문 없이 **지금 바로** complete_intake 도구를 호출하세요.
@@ -278,21 +234,6 @@ export function buildSystemPrompt(
   const injection = STATE_INJECTIONS[state];
   if (injection) {
     let injected = injection;
-    if (state === "structured_gathering") {
-      injected = injected
-        .replace(
-          "{fields_collected}",
-          fieldsCollected.length > 0
-            ? fieldsCollected.map((f) => `- ${f}`).join("\n")
-            : "- (아직 없음)"
-        )
-        .replace(
-          "{fields_missing}",
-          fieldsMissing.length > 0
-            ? fieldsMissing.map((f) => `- ${f}`).join("\n")
-            : "- (모두 수집 완료)"
-        );
-    }
     if (state === "deep_gather") {
       injected = injected
         .replace(

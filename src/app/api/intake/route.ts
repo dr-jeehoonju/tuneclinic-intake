@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "@/lib/supabase";
+import { checkSessionCreateLimit, checkMessageLimit } from "@/lib/rate-limit";
 import {
   buildSystemPrompt,
   computeMissingFields,
@@ -24,29 +25,53 @@ import type {
   QuickCollectData,
 } from "@/lib/types";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
+const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 const MAX_HISTORY = 40;
 const DEEP_GATHER_MAX = 7;
+const MAX_MESSAGE_LENGTH = 2000;
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const body = await req.json();
     const lang = detectLang(body.lang || null);
 
     // Create new session
     if (!body.session_id && !body.message && !body.action) {
+      if (!checkSessionCreateLimit(ip)) {
+        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+      }
       return createSession(lang);
     }
 
+    const sessionId = typeof body.session_id === "string" ? body.session_id : "";
+    if (!sessionId) {
+      return NextResponse.json({ error: "Invalid session_id" }, { status: 400 });
+    }
+
+    if (!checkMessageLimit(sessionId)) {
+      return NextResponse.json({ error: "Too many messages" }, { status: 429 });
+    }
+
     // Quick collect submission
-    if (body.session_id && body.action === "quick_collect" && body.data) {
-      return handleQuickCollect(body.session_id, body.data as QuickCollectData, lang);
+    if (body.action === "quick_collect" && body.data && typeof body.data === "object") {
+      const data = body.data as QuickCollectData;
+      if (!data.chief_complaint || typeof data.chief_complaint !== "string") {
+        return NextResponse.json({ error: "chief_complaint required" }, { status: 400 });
+      }
+      return handleQuickCollect(sessionId, data, lang);
     }
 
     // Chat message (deep_gather / confirmation)
-    if (body.session_id && body.message) {
-      return handleMessage(body.session_id, body.message, lang);
+    if (body.message) {
+      const message = typeof body.message === "string" ? body.message.slice(0, MAX_MESSAGE_LENGTH) : "";
+      if (!message) {
+        return NextResponse.json({ error: "Invalid message" }, { status: 400 });
+      }
+      return handleMessage(sessionId, message, lang);
     }
 
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -182,44 +207,49 @@ async function handleQuickCollect(
 
     if (existingPatients && existingPatients.length > 0) {
       const existingPatient = existingPatients[0];
+      const orphanedPatientId = s.patient_id;
       activePatientId = existingPatient.id;
 
-      // Reassign session to existing patient
-      await supabase
+      // Reassign session to existing patient — verify success before deleting orphan
+      const { error: reassignErr } = await supabase
         .from("intake_sessions")
         .update({ patient_id: activePatientId })
         .eq("id", sessionId);
 
-      // Update name if provided
-      if (data.patient_name) {
-        await supabase.from("patients").update({ name: data.patient_name }).eq("id", activePatientId);
-      }
+      if (reassignErr) {
+        console.error("Failed to reassign session:", reassignErr);
+        activePatientId = s.patient_id;
+      } else {
+        if (data.patient_name) {
+          await supabase.from("patients").update({ name: data.patient_name }).eq("id", activePatientId);
+        }
 
-      // Fetch previous cases for context
-      const { data: prevCases } = await supabase
-        .from("cases")
-        .select("chief_complaint, structured_summary, created_at")
-        .eq("patient_id", activePatientId)
-        .order("created_at", { ascending: false })
-        .limit(3);
+        const { data: prevCases } = await supabase
+          .from("cases")
+          .select("chief_complaint, structured_summary, created_at")
+          .eq("patient_id", activePatientId)
+          .order("created_at", { ascending: false })
+          .limit(3);
 
-      if (prevCases && prevCases.length > 0) {
-        const prevSummaries = prevCases.map((pc) => {
-          const ps = safeParseSummary(pc.structured_summary);
-          const date = new Date(pc.created_at).toLocaleDateString("ko-KR");
-          const treatments = (ps.treatment_interests || []).join(", ");
-          return `- ${date}: ${pc.chief_complaint || ""}${treatments ? ` (관심 시술: ${treatments})` : ""}`;
+        if (prevCases && prevCases.length > 0) {
+          const prevSummaries = prevCases.map((pc) => {
+            const ps = safeParseSummary(pc.structured_summary);
+            const date = new Date(pc.created_at).toLocaleDateString("ko-KR");
+            const treatments = (ps.treatment_interests || []).join(", ");
+            return `- ${date}: ${pc.chief_complaint || ""}${treatments ? ` (관심 시술: ${treatments})` : ""}`;
+          });
+          returningContext = `\n\n## 재방문 환자\n이 환자는 재방문입니다. 이전 상담 이력:\n${prevSummaries.join("\n")}\n\n"다시 방문해 주셨군요"와 같은 표현으로 자연스럽게 인사하세요. 이전 시술 이력을 참고하되, 이번 고민이 다를 수 있으니 새로운 고민에 집중하세요.`;
+        }
+
+        // Only delete orphan after session reassignment confirmed
+        const { error: delErr } = await supabase.from("patients").delete().eq("id", orphanedPatientId);
+        if (delErr) console.error("Failed to delete orphaned patient:", delErr);
+
+        await logAuditEvent("returning_patient_detected", "agent_intake", "intake_session", sessionId, {
+          existing_patient_id: activePatientId,
+          previous_cases: prevCases?.length || 0,
         });
-        returningContext = `\n\n## 재방문 환자\n이 환자는 재방문입니다. 이전 상담 이력:\n${prevSummaries.join("\n")}\n\n"다시 방문해 주셨군요"와 같은 표현으로 자연스럽게 인사하세요. 이전 시술 이력을 참고하되, 이번 고민이 다를 수 있으니 새로운 고민에 집중하세요.`;
       }
-
-      // Clean up the orphaned patient record
-      await supabase.from("patients").delete().eq("id", s.patient_id);
-
-      await logAuditEvent("returning_patient_detected", "agent_intake", "intake_session", sessionId, {
-        existing_patient_id: activePatientId,
-        previous_cases: prevCases?.length || 0,
-      });
     } else {
       // New patient — update record with name and phone
       await supabase
@@ -482,7 +512,15 @@ async function handleMessage(
         textBlock && textBlock.type === "text" ? textBlock.text : COMPLETION_MESSAGE;
 
       await transitionState(sessionId, currentState, "structuring", newExchange);
-      await createCase(sessionId, s.patient_id, intakeData);
+      const caseCreated = await createCase(sessionId, s.patient_id, intakeData);
+      if (!caseCreated) {
+        return NextResponse.json({
+          reply: "죄송합니다. 상담 저장에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+          state: currentState,
+          session_id: sessionId,
+          is_complete: false,
+        });
+      }
       await transitionState(sessionId, "structuring", "complete", newExchange);
 
       const seq = await getNextSequenceNumber(sessionId);
@@ -618,24 +656,23 @@ async function saveMessage(
   state: IntakeState,
   seq: number
 ) {
-  await supabase.from("intake_messages").insert({
+  const { error } = await supabase.from("intake_messages").insert({
     session_id: sessionId,
     role,
     content_original: content,
     state_at_time: state,
     sequence_number: seq,
   });
+  if (error) console.error("saveMessage failed:", error);
 }
 
 async function getNextSequenceNumber(sessionId: string): Promise<number> {
-  const { data } = await supabase
+  const { count } = await supabase
     .from("intake_messages")
-    .select("sequence_number")
-    .eq("session_id", sessionId)
-    .order("sequence_number", { ascending: false })
-    .limit(1);
+    .select("*", { count: "exact", head: true })
+    .eq("session_id", sessionId);
 
-  return data && data.length > 0 ? data[0].sequence_number + 1 : 0;
+  return count ?? 0;
 }
 
 async function getConversationHistory(sessionId: string): Promise<IntakeMessage[]> {
@@ -706,9 +743,9 @@ async function createCase(
     .select()
     .single();
 
-  if (error) {
+  if (error || !caseData) {
     console.error("Failed to create case:", error);
-    return;
+    return false;
   }
 
   await logAuditEvent("case_created", "agent_intake", "case", caseData.id, {
@@ -721,6 +758,8 @@ async function createCase(
   await logAuditEvent("intake_completed", "agent_intake", "intake_session", sessionId, {
     case_id: caseData.id,
   });
+
+  return true;
 }
 
 async function logAuditEvent(

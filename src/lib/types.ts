@@ -1,6 +1,5 @@
 export type IntakeState =
   | "greeting"
-  | "open_narrative"
   | "quick_collect"
   | "deep_gather"
   | "confirmation"

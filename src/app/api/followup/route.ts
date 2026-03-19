@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
 
   let patientName = "";
   try {
-    const summary = JSON.parse(caseData.structured_summary || "{}");
+    const raw = caseData.structured_summary;
+    const summary = (raw && typeof raw === "object") ? raw : JSON.parse(raw || "{}");
     patientName = summary.patient_name || "";
   } catch { /* ignore */ }
 
@@ -45,8 +46,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { case_id, rating, comment, side_effects } = body;
 
-    if (!case_id || !rating) {
+    if (!case_id || rating === undefined || rating === null) {
       return NextResponse.json({ error: "case_id and rating required" }, { status: 400 });
+    }
+
+    const parsedRating = typeof rating === "number" ? rating : parseInt(rating);
+    if (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+      return NextResponse.json({ error: "Rating must be 1-5" }, { status: 400 });
     }
 
     const { data: caseData } = await supabase
@@ -59,10 +65,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });
     }
 
+    // Prevent duplicate submissions
+    const { data: existing } = await supabase
+      .from("follow_up_sessions")
+      .select("id")
+      .eq("case_id", case_id)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return NextResponse.json({ error: "Already submitted" }, { status: 409 });
+    }
+
     const { error: insertErr } = await supabase.from("follow_up_sessions").insert({
       case_id,
       patient_id: caseData.patient_id,
-      rating: parseInt(rating),
+      rating: parsedRating,
       comment: comment || null,
       side_effects: side_effects || [],
       created_at: new Date().toISOString(),
@@ -77,11 +94,12 @@ export async function POST(req: NextRequest) {
     if (side_effects && side_effects.length > 0) {
       let patientName = "";
       try {
-        const summary = JSON.parse(caseData.structured_summary || "{}");
+        const raw = caseData.structured_summary;
+        const summary = (raw && typeof raw === "object") ? raw : JSON.parse(raw || "{}");
         patientName = summary.patient_name || "";
       } catch { /* ignore */ }
 
-      await notifyPhysicianFollowup(patientName, caseData.chief_complaint, side_effects, rating, comment);
+      await notifyPhysicianFollowup(patientName, caseData.chief_complaint, side_effects, parsedRating, comment);
     }
 
     return NextResponse.json({ success: true });
@@ -111,7 +129,7 @@ ${comment ? `코멘트: ${comment}` : ""}`;
     await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text, parse_mode: "HTML" }),
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
     });
   } catch (err) {
     console.error("Telegram notification error:", err);
