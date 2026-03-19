@@ -77,6 +77,9 @@ export interface CompleteIntakeInput {
   pregnancy_status?: "not_pregnant" | "pregnant" | "breastfeeding" | "unknown";
   budget_range?: string;
   timeline?: string;
+  upcoming_event?: string;
+  pain_sensitivity?: string;
+  downtime_ok?: string;
   fields_collected: string[];
   fields_missing?: string[];
   risk_flags: string[];

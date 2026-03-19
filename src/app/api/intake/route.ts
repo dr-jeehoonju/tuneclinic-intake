@@ -746,6 +746,9 @@ async function createCase(
         pregnancy_status: data.pregnancy_status,
         budget_range: data.budget_range,
         timeline: data.timeline,
+        upcoming_event: data.upcoming_event,
+        pain_sensitivity: data.pain_sensitivity,
+        downtime_ok: data.downtime_ok,
       }),
       risk_flags: data.risk_flags.map((flag) => ({ flag, detail: flag })),
       missing_info: (data.fields_missing || []).map((field) => ({

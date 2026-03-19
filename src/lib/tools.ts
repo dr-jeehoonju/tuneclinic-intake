@@ -81,6 +81,18 @@ export const COMPLETE_INTAKE_TOOL = {
         type: "string",
         description: "일정/이벤트.",
       },
+      upcoming_event: {
+        type: "string",
+        description: "곧 다가오는 중요 이벤트 (결혼식, 면접 등). 환자가 언급한 경우에만.",
+      },
+      pain_sensitivity: {
+        type: "string",
+        description: "통증 민감도. 예: '민감', '보통', '괜찮음'. 환자가 언급한 경우에만.",
+      },
+      downtime_ok: {
+        type: "string",
+        description: "다운타임(회복 기간) 수용 여부. 예: '괜찮음', '최소화 희망', '불가'. 환자가 언급한 경우에만.",
+      },
       fields_collected: {
         type: "array",
         items: { type: "string" },
