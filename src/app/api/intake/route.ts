@@ -150,6 +150,16 @@ async function handleQuickCollect(
     seq
   );
 
+  // Store structured JSON for reliable parsing in forceCompleteIntake
+  const seq1b = await getNextSequenceNumber(sessionId);
+  await saveMessage(
+    sessionId,
+    "system",
+    `[QUICK_COLLECT_JSON]${JSON.stringify(data)}`,
+    "quick_collect",
+    seq1b
+  );
+
   // Store patient's chief complaint as a patient message
   const seq2 = await getNextSequenceNumber(sessionId);
   await saveMessage(
@@ -575,7 +585,6 @@ async function logAuditEvent(
       resource_type: resourceType,
       resource_id: resourceId,
       payload,
-      hash: "placeholder",
     });
   } catch (err) {
     console.error("Audit log error (non-blocking):", err);
@@ -588,27 +597,34 @@ async function forceCompleteIntake(
   fieldsCollected: string[],
   quickSummary: string
 ) {
-  const lines = quickSummary.split("\n").map((l) => l.replace(/^-\s*/, "").replace(/\(확인 완료.*?\)/g, "").trim());
-  const chiefComplaint = lines.find((l) => l.startsWith("주 호소:"))?.replace("주 호소: ", "") || "";
-  const skinConcerns = lines.find((l) => l.startsWith("피부 고민:"))?.replace("피부 고민: ", "").split(", ") || [];
-  const treatmentInterests = lines.find((l) => l.startsWith("관심 시술:"))?.replace("관심 시술: ", "").split(", ") || [];
-  const ageRange = lines.find((l) => l.startsWith("연령대:"))?.replace("연령대: ", "") || "";
-  const gender = lines.find((l) => l.startsWith("성별:"))?.replace("성별: ", "") || "";
-  const previousTreatments = lines.find((l) => l.startsWith("이전 시술 경험:"))?.replace("이전 시술 경험: ", "") || "";
-  const pregnancyStatus = lines.find((l) => l.startsWith("임신/수유:"))?.replace("임신/수유: ", "") || "";
+  // Try to load structured JSON first (reliable), fall back to string parsing
+  let data: QuickCollectData | null = null;
+  const { data: jsonMsg } = await supabase
+    .from("intake_messages")
+    .select("content_original")
+    .eq("session_id", sessionId)
+    .eq("role", "system")
+    .like("content_original", "[QUICK_COLLECT_JSON]%")
+    .limit(1);
+
+  if (jsonMsg && jsonMsg.length > 0) {
+    try {
+      data = JSON.parse(jsonMsg[0].content_original.replace("[QUICK_COLLECT_JSON]", ""));
+    } catch { /* fall through to string parsing */ }
+  }
 
   const history = await getConversationHistory(sessionId);
   const patientMessages = history.filter((m) => m.role === "patient").map((m) => m.content_original);
   const fullNarrative = patientMessages.join(" | ");
 
   const intakeData: CompleteIntakeInput = {
-    chief_complaint: chiefComplaint || fullNarrative.slice(0, 200),
-    skin_concerns: skinConcerns,
-    treatment_interests: treatmentInterests.filter((t) => t !== "특별히 없음"),
-    age_range: ageRange,
-    gender: gender === "여성" ? "female" : gender === "남성" ? "male" : "unknown",
-    previous_treatments: previousTreatments,
-    pregnancy_status: pregnancyStatus === "임신 중" ? "pregnant" : pregnancyStatus === "수유 중" ? "breastfeeding" : "not_pregnant",
+    chief_complaint: data?.chief_complaint || fullNarrative.slice(0, 200),
+    skin_concerns: data?.skin_concerns || [],
+    treatment_interests: (data?.treatment_interests || []).filter((t) => t !== "특별히 없음"),
+    age_range: data?.age_range || "",
+    gender: data?.gender === "여성" ? "female" : data?.gender === "남성" ? "male" : "unknown",
+    previous_treatments: data?.previous_treatments || "",
+    pregnancy_status: data?.pregnancy_status === "임신 중" ? "pregnant" : data?.pregnancy_status === "수유 중" ? "breastfeeding" : "not_pregnant",
     fields_collected: fieldsCollected,
     fields_missing: computeMissingFields(fieldsCollected),
     risk_flags: [],
