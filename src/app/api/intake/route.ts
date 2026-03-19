@@ -25,7 +25,7 @@ import type {
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 const MAX_HISTORY = 40;
-const DEEP_GATHER_MAX = 4;
+const DEEP_GATHER_MAX = 3;
 
 export async function POST(req: NextRequest) {
   try {
@@ -190,7 +190,10 @@ async function handleQuickCollect(
     max_tokens: 1024,
     system: systemPrompt,
     messages: [
-      { role: "user", content: data.chief_complaint },
+      {
+        role: "user",
+        content: `[사전 설문 응답]\n${quickSummary}\n\n위 내용은 환자가 클릭형 설문에서 직접 선택한 답변입니다. 이 정보를 다시 물어보지 마세요.\n\n환자의 주 호소: ${data.chief_complaint}`,
+      },
     ],
     tools: [COMPLETE_INTAKE_TOOL],
   });
@@ -276,9 +279,9 @@ async function handleMessage(
     await transitionState(sessionId, "deep_gather", "confirmation", newExchange);
   }
 
-  // Build system prompt — for deep_gather, reconstruct quickSummary from system message
+  // Build system prompt — for deep_gather/confirmation, reconstruct quickSummary from system message
   let quickSummary: string | undefined;
-  if (currentState === "deep_gather") {
+  if (currentState === "deep_gather" || currentState === "confirmation") {
     quickSummary = await getQuickSummaryFromHistory(sessionId);
   }
 
@@ -295,6 +298,15 @@ async function handleMessage(
   const history = await getConversationHistory(sessionId);
 
   const messages: Anthropic.MessageParam[] = [];
+
+  // For deep_gather, inject the quick collect summary as the first user message
+  if ((currentState === "deep_gather" || currentState === "confirmation") && quickSummary) {
+    messages.push({
+      role: "user",
+      content: `[사전 설문 응답]\n${quickSummary}\n\n위 내용은 환자가 클릭형 설문에서 직접 선택한 답변입니다. 이 정보를 다시 물어보지 마세요.`,
+    });
+  }
+
   for (const m of history) {
     if (m.role === "system") continue;
     const role = m.role === "patient" ? "user" as const : "assistant" as const;
