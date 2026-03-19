@@ -152,7 +152,7 @@ async function handleQuickCollect(
   }
 
   // Build fields collected from quick collect data
-  const fieldsCollected: string[] = ["chief_complaint", "skin_concerns"];
+  const fieldsCollected: string[] = ["chief_complaint", "skin_concerns", "patient_name", "patient_phone"];
   if (data.age_range) fieldsCollected.push("age_range");
   if (data.gender) fieldsCollected.push("gender");
   if (data.treatment_interests?.length > 0) fieldsCollected.push("treatment_interests");
@@ -161,6 +161,17 @@ async function handleQuickCollect(
   if (data.pregnancy_status) fieldsCollected.push("pregnancy_status");
 
   const fieldsMissing = computeMissingFields(fieldsCollected);
+
+  // Update patient record with name and phone
+  if (data.patient_name || data.patient_phone) {
+    await supabase
+      .from("patients")
+      .update({
+        ...(data.patient_name ? { name: data.patient_name } : {}),
+        ...(data.patient_phone ? { phone: data.patient_phone } : {}),
+      })
+      .eq("id", s.patient_id);
+  }
 
   // Build a human-readable summary of the quick collect data
   const quickSummary = buildQuickSummary(data);
@@ -457,6 +468,8 @@ async function handleMessage(
 
 function buildQuickSummary(data: QuickCollectData): string {
   const lines: string[] = [];
+  if (data.patient_name) lines.push(`- 성함: ${data.patient_name}`);
+  if (data.patient_phone) lines.push(`- 연락처: ${data.patient_phone}`);
   lines.push(`- 주 호소: ${data.chief_complaint}`);
   if (data.skin_concerns?.length > 0)
     lines.push(`- 피부 고민: ${data.skin_concerns.join(", ")}`);
@@ -557,6 +570,8 @@ async function createCase(
       intake_session_id: sessionId,
       chief_complaint: data.chief_complaint,
       structured_summary: JSON.stringify({
+        patient_name: data.patient_name,
+        patient_phone: data.patient_phone,
         skin_concerns: data.skin_concerns,
         treatment_interests: data.treatment_interests,
         age_range: data.age_range,
@@ -647,6 +662,8 @@ async function forceCompleteIntake(
 
   const intakeData: CompleteIntakeInput = {
     chief_complaint: data?.chief_complaint || fullNarrative.slice(0, 200),
+    patient_name: data?.patient_name || "",
+    patient_phone: data?.patient_phone || "",
     skin_concerns: data?.skin_concerns || [],
     treatment_interests: (data?.treatment_interests || []).filter((t) => t !== "특별히 없음"),
     age_range: data?.age_range || "",
@@ -681,8 +698,27 @@ async function notifyPhysician(sessionId: string, urgency: string, flags: string
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return;
 
+  // Fetch patient info for notification
+  let patientInfo = "";
+  const { data: sessionData } = await supabase
+    .from("intake_sessions")
+    .select("patient_id")
+    .eq("id", sessionId)
+    .single();
+  if (sessionData) {
+    const { data: patientData } = await supabase
+      .from("patients")
+      .select("name, phone")
+      .eq("id", sessionData.patient_id)
+      .single();
+    if (patientData) {
+      if (patientData.name) patientInfo += `\n이름: ${patientData.name}`;
+      if (patientData.phone) patientInfo += `\n연락처: ${patientData.phone}`;
+    }
+  }
+
   const flagText = flags.length > 0 ? `\nFlags: ${flags.join(", ")}` : "\nFlags: 없음";
-  const text = `[Tuneclinic Intake] ${urgency}\nSession: ${sessionId}${flagText}`;
+  const text = `[에이전트 튠] ${urgency}\nSession: ${sessionId}${patientInfo}${flagText}`;
 
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {

@@ -16,14 +16,17 @@ export type SafetyLevel = "clear" | "emergency" | "flag";
 export interface QuickStep {
   id: string;
   question: string;
-  type: "single" | "multi";
+  type: "single" | "multi" | "text";
   options: { label: string; value: string }[];
   allowSkip?: boolean;
   skipLabel?: string;
+  placeholder?: string;
 }
 
 export interface QuickCollectData {
   chief_complaint: string;
+  patient_name: string;
+  patient_phone: string;
   skin_concerns: string[];
   treatment_interests: string[];
   age_range: string;
@@ -60,6 +63,8 @@ export interface IntakeMessage {
 
 export interface CompleteIntakeInput {
   chief_complaint: string;
+  patient_name?: string;
+  patient_phone?: string;
   skin_concerns: string[];
   treatment_interests?: string[];
   age_range?: string;

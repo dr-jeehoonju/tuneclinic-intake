@@ -7,6 +7,20 @@ import type { QuickStep, QuickCollectData } from "@/lib/types";
 
 const QUICK_STEPS: QuickStep[] = [
   {
+    id: "patient_name",
+    question: "성함을 알려주세요.",
+    type: "text",
+    options: [],
+    placeholder: "홍길동",
+  },
+  {
+    id: "patient_phone",
+    question: "연락 가능한 전화번호를 알려주세요.",
+    type: "text",
+    options: [],
+    placeholder: "010-0000-0000",
+  },
+  {
     id: "skin_concerns",
     question: "어떤 피부 고민이 있으신가요?",
     type: "multi",
@@ -116,6 +130,7 @@ export default function IntakePage() {
   const [quickStep, setQuickStep] = useState(0);
   const [quickData, setQuickData] = useState<Record<string, string[]>>({});
   const [multiSelected, setMultiSelected] = useState<string[]>([]);
+  const [textInput, setTextInput] = useState("");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -199,6 +214,16 @@ export default function IntakePage() {
     advanceStep(newData);
   }
 
+  // Submit text input
+  function submitTextInput(stepId: string) {
+    const trimmed = textInput.trim();
+    if (!trimmed) return;
+    const newData = { ...quickData, [stepId]: [trimmed] };
+    setQuickData(newData);
+    setTextInput("");
+    advanceStep(newData);
+  }
+
   function advanceStep(currentData: Record<string, string[]>) {
     const nextStep = quickStep + 1;
     if (nextStep >= QUICK_STEPS.length) {
@@ -215,6 +240,8 @@ export default function IntakePage() {
 
     const payload: QuickCollectData = {
       chief_complaint: allData.chief_complaint?.[0] || "",
+      patient_name: allData.patient_name?.[0] || "",
+      patient_phone: allData.patient_phone?.[0] || "",
       skin_concerns: allData.skin_concerns || [],
       treatment_interests: allData.treatment_interests || [],
       age_range: allData.age_range?.[0] || "",
@@ -314,10 +341,10 @@ export default function IntakePage() {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3 shrink-0">
         <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-          <span className="text-amber-700 font-bold text-sm">TC</span>
+          <span className="text-amber-700 font-bold text-base">튠</span>
         </div>
         <div>
-          <h1 className="text-base font-bold text-slate-900">압구정튠의원 상담</h1>
+          <h1 className="text-base font-bold text-slate-900">에이전트 튠</h1>
           <p className="text-xs text-slate-500">
             {isTerminal
               ? pageState === "complete" ? "상담 완료" : "에스컬레이션"
@@ -402,6 +429,33 @@ export default function IntakePage() {
                   </button>
                 ))}
               </div>
+            )}
+
+            {currentStep.type === "text" && (
+              <form
+                onSubmit={(e) => { e.preventDefault(); submitTextInput(currentStep.id); }}
+                className="space-y-4"
+              >
+                <input
+                  type={currentStep.id === "patient_phone" ? "tel" : "text"}
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder={currentStep.placeholder || ""}
+                  autoFocus
+                  className="w-full px-5 py-4 rounded-xl border-2 border-slate-200 bg-white
+                    text-sm text-slate-700 placeholder:text-slate-400
+                    focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400
+                    transition-all"
+                />
+                <button
+                  type="submit"
+                  disabled={!textInput.trim()}
+                  className="w-full px-5 py-3 rounded-xl bg-amber-600 text-white text-sm font-bold
+                    hover:bg-amber-700 disabled:opacity-40 disabled:hover:bg-amber-600 transition-all"
+                >
+                  다음
+                </button>
+              </form>
             )}
 
             {currentStep.type === "multi" && (
@@ -511,7 +565,7 @@ export default function IntakePage() {
           <p className="text-sm text-slate-500">
             {pageState === "complete"
               ? "상담이 완료되었습니다. 원장님이 확인 후 연락드리겠습니다."
-              : "긴급 상황으로 상담이 중단되었습니다."}
+              : "긴급 상황으로 안내가 중단되었습니다. 병원(02-540-8011)으로 연락해 주세요."}
           </p>
         </div>
       )}
