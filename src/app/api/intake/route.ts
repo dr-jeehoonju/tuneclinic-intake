@@ -495,16 +495,22 @@ async function handleMessage(
   });
 
   // --- Handle tool use (complete_intake) ---
-  // Guard: in deep_gather, reject premature tool calls (need at least 4 patient exchanges)
   const MIN_EXCHANGES_BEFORE_COMPLETE = 5;
   const prematureToolCall =
     currentState === "deep_gather" &&
     newExchange < MIN_EXCHANGES_BEFORE_COMPLETE &&
     claudeResponse.stop_reason === "tool_use";
 
-  if (claudeResponse.stop_reason === "tool_use" && !prematureToolCall) {
+  // Guard: if Claude asked a question in the same turn as tool call, reject the tool call
+  const textBlockForGuard = claudeResponse.content.find((b) => b.type === "text");
+  const textForGuard = textBlockForGuard && textBlockForGuard.type === "text" ? textBlockForGuard.text : "";
+  const askedQuestionWithTool =
+    claudeResponse.stop_reason === "tool_use" &&
+    /[?？가요까요신가요세요나요시나요습니까]/.test(textForGuard.slice(-60));
+
+  if (claudeResponse.stop_reason === "tool_use" && !prematureToolCall && !askedQuestionWithTool) {
     const toolBlock = claudeResponse.content.find((b) => b.type === "tool_use");
-    const textBlock = claudeResponse.content.find((b) => b.type === "text");
+    const textBlock = textBlockForGuard;
 
     if (toolBlock && toolBlock.type === "tool_use") {
       const intakeData = toolBlock.input as CompleteIntakeInput;
