@@ -418,9 +418,9 @@ export default function IntakePage() {
 
       {/* Quick collect steps (Typeform style) */}
       {pageState === "quick_collect" && currentStep && (
-        <div className="flex-1 flex items-center justify-center px-6">
-          <div className="w-full max-w-md">
-            <h2 className="text-lg font-bold text-slate-900 mb-6 text-center">
+        <div className="flex-1 flex items-center justify-center px-6 overflow-hidden">
+          <div className="w-full max-w-md max-h-full flex flex-col">
+            <h2 className="text-lg font-bold text-slate-900 mb-6 text-center shrink-0">
               {currentStep.question}
             </h2>
 
@@ -469,14 +469,15 @@ export default function IntakePage() {
             )}
 
             {currentStep.type === "multi" && (
-              <div className="space-y-3">
+              <div className="flex flex-col min-h-0">
+                <div className="space-y-2 overflow-y-auto flex-1 pb-2">
                 {currentStep.options.map((opt) => {
                   const selected = multiSelected.includes(opt.value);
                   return (
                     <button
                       key={opt.value}
                       onClick={() => toggleMultiSelect(opt.value)}
-                      className={`w-full px-5 py-4 rounded-xl border-2 text-sm font-medium
+                      className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-medium
                         active:scale-[0.98] transition-all ${
                           selected
                             ? "border-amber-500 bg-amber-50 text-amber-800"
@@ -500,8 +501,9 @@ export default function IntakePage() {
                     </button>
                   );
                 })}
+                </div>
 
-                <div className="flex gap-3 pt-3">
+                <div className="flex gap-3 pt-3 shrink-0">
                   {currentStep.allowSkip && (
                     <button
                       onClick={() => skipMultiSelect(currentStep.id)}

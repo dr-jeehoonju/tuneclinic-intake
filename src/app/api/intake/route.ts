@@ -385,7 +385,14 @@ async function handleMessage(
   });
 
   // --- Handle tool use (complete_intake) ---
-  if (claudeResponse.stop_reason === "tool_use") {
+  // Guard: in deep_gather, reject premature tool calls (need at least 4 patient exchanges)
+  const MIN_EXCHANGES_BEFORE_COMPLETE = 5;
+  const prematureToolCall =
+    currentState === "deep_gather" &&
+    newExchange < MIN_EXCHANGES_BEFORE_COMPLETE &&
+    claudeResponse.stop_reason === "tool_use";
+
+  if (claudeResponse.stop_reason === "tool_use" && !prematureToolCall) {
     const toolBlock = claudeResponse.content.find((b) => b.type === "tool_use");
     const textBlock = claudeResponse.content.find((b) => b.type === "text");
 
