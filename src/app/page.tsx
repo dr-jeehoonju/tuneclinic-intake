@@ -374,7 +374,7 @@ export default function IntakePage() {
 
               {/* Body paragraphs */}
               {paragraphs.slice(1, -1).map((p, i) => (
-                <p key={i} className="text-[13px] sm:text-sm text-slate-500 leading-relaxed">
+                <p key={i} className="text-[13px] sm:text-sm text-slate-500 leading-relaxed whitespace-pre-line">
                   {p}
                 </p>
               ))}
