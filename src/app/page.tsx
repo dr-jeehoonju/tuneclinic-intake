@@ -321,20 +321,41 @@ export default function IntakePage() {
       )}
 
       {/* Greeting — Claude-style centered splash */}
-      {isGreeting && messages[0] && (
-        <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 overflow-y-auto overscroll-contain">
-          <div className="max-w-md w-full text-center">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-5 sm:mb-6">
-              <svg className="w-8 h-8 sm:w-9 sm:h-9 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="8.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><circle cx="15.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><path d="M8 11V9a4 4 0 0 1 8 0v2" /><line x1="12" y1="2" x2="12" y2="5" /><circle cx="12" cy="2" r="1" fill="currentColor" stroke="none" />
-              </svg>
+      {isGreeting && messages[0] && (() => {
+        const paragraphs = messages[0].content.split("\n\n").filter(Boolean);
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 overflow-y-auto overscroll-contain">
+            <div className="max-w-md w-full text-center space-y-5 sm:space-y-6">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
+                <svg className="w-8 h-8 sm:w-9 sm:h-9 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="8.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><circle cx="15.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><path d="M8 11V9a4 4 0 0 1 8 0v2" /><line x1="12" y1="2" x2="12" y2="5" /><circle cx="12" cy="2" r="1" fill="currentColor" stroke="none" />
+                </svg>
+              </div>
+
+              {/* Title paragraph */}
+              {paragraphs[0] && (
+                <p className="text-base sm:text-lg font-semibold text-slate-800 leading-relaxed">
+                  {paragraphs[0]}
+                </p>
+              )}
+
+              {/* Body paragraphs */}
+              {paragraphs.slice(1, -1).map((p, i) => (
+                <p key={i} className="text-[13px] sm:text-sm text-slate-500 leading-relaxed">
+                  {p}
+                </p>
+              ))}
+
+              {/* CTA (last paragraph) */}
+              {paragraphs.length > 1 && (
+                <p className="text-[15px] sm:text-base font-medium text-amber-700 leading-relaxed pt-1">
+                  {paragraphs[paragraphs.length - 1]}
+                </p>
+              )}
             </div>
-            <p className="text-[15px] sm:text-base text-slate-700 leading-relaxed whitespace-pre-wrap">
-              {messages[0].content}
-            </p>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Chat area (visible in deep_gather, confirmation, terminal, or chief_complaint after user typed) */}
       {pageState !== "quick_collect" && !isGreeting && (
