@@ -276,6 +276,7 @@ export default function IntakePage() {
 
   const isTerminal = pageState === "complete" || pageState === "escalated";
   const isChatMode = pageState === "deep_gather" || pageState === "confirmation";
+  const isGreeting = pageState === "chief_complaint" && messages.length === 1;
   const quickSteps = getQuickSteps(lang);
   const currentStep = quickSteps[quickStep];
   const t = UI_STRINGS[lang];
@@ -317,8 +318,22 @@ export default function IntakePage() {
         </div>
       )}
 
-      {/* Chat area (visible in chief_complaint, deep_gather, confirmation, terminal) */}
-      {pageState !== "quick_collect" && (
+      {/* Greeting — Claude-style centered splash */}
+      {isGreeting && messages[0] && (
+        <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 overflow-y-auto overscroll-contain">
+          <div className="max-w-md w-full text-center">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-5 sm:mb-6">
+              <span className="text-amber-700 font-bold text-sm sm:text-base leading-tight">에이전<br/>튠</span>
+            </div>
+            <p className="text-[15px] sm:text-base text-slate-700 leading-relaxed whitespace-pre-wrap">
+              {messages[0].content}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Chat area (visible in deep_gather, confirmation, terminal, or chief_complaint after user typed) */}
+      {pageState !== "quick_collect" && !isGreeting && (
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6 space-y-3 sm:space-y-4 overscroll-contain">
           {messages.map((msg, i) => (
             <div
