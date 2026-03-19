@@ -4,15 +4,17 @@ import { supabase } from "@/lib/supabase";
 import {
   buildSystemPrompt,
   computeMissingFields,
-  GREETING_MESSAGE,
+  getGreetingMessage,
   COMPLETION_MESSAGE,
 } from "@/lib/prompts";
+import { detectLang, type Lang } from "@/lib/i18n";
 import { COMPLETE_INTAKE_TOOL } from "@/lib/tools";
 import {
   checkSafetyKeywords,
   EMERGENCY_RESPONSE,
   buildFlagInjection,
 } from "@/lib/safety";
+import { getTreatmentGuidePrompt } from "@/lib/treatment-guides";
 import type {
   IntakeState,
   IntakeSession,
@@ -30,20 +32,21 @@ const DEEP_GATHER_MAX = 7;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const lang = detectLang(body.lang || null);
 
     // Create new session
     if (!body.session_id && !body.message && !body.action) {
-      return createSession();
+      return createSession(lang);
     }
 
     // Quick collect submission
     if (body.session_id && body.action === "quick_collect" && body.data) {
-      return handleQuickCollect(body.session_id, body.data as QuickCollectData);
+      return handleQuickCollect(body.session_id, body.data as QuickCollectData, lang);
     }
 
     // Chat message (deep_gather / confirmation)
     if (body.session_id && body.message) {
-      return handleMessage(body.session_id, body.message);
+      return handleMessage(body.session_id, body.message, lang);
     }
 
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -56,10 +59,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function createSession(): Promise<NextResponse> {
+async function createSession(lang: Lang = "ko"): Promise<NextResponse> {
+  const greeting = getGreetingMessage(lang);
   const { data: patient, error: patientErr } = await supabase
     .from("patients")
-    .insert({ language: "ko", status: "active" })
+    .insert({ language: lang, status: "active" })
     .select()
     .single();
 
@@ -92,13 +96,14 @@ async function createSession(): Promise<NextResponse> {
     );
   }
 
-  await saveMessage(session.id, "assistant", GREETING_MESSAGE, "greeting", 0);
+  await saveMessage(session.id, "assistant", greeting, "greeting", 0);
   await logAuditEvent("intake_started", "agent_intake", "intake_session", session.id, {
     patient_id: patient.id,
+    language: lang,
   });
 
   return NextResponse.json({
-    reply: GREETING_MESSAGE,
+    reply: greeting,
     state: "greeting",
     session_id: session.id,
     is_complete: false,
@@ -112,7 +117,8 @@ async function createSession(): Promise<NextResponse> {
  */
 async function handleQuickCollect(
   sessionId: string,
-  data: QuickCollectData
+  data: QuickCollectData,
+  lang: Lang = "ko"
 ): Promise<NextResponse> {
   const { data: session, error: sessionErr } = await supabase
     .from("intake_sessions")
@@ -162,15 +168,70 @@ async function handleQuickCollect(
 
   const fieldsMissing = computeMissingFields(fieldsCollected);
 
-  // Update patient record with name and phone
-  if (data.patient_name || data.patient_phone) {
-    await supabase
+  // Returning patient recognition: check if phone already exists
+  let returningContext = "";
+  let activePatientId = s.patient_id;
+
+  if (data.patient_phone) {
+    const { data: existingPatients } = await supabase
       .from("patients")
-      .update({
-        ...(data.patient_name ? { name: data.patient_name } : {}),
-        ...(data.patient_phone ? { phone: data.patient_phone } : {}),
-      })
-      .eq("id", s.patient_id);
+      .select("id, name")
+      .eq("phone", data.patient_phone)
+      .neq("id", s.patient_id)
+      .limit(1);
+
+    if (existingPatients && existingPatients.length > 0) {
+      const existingPatient = existingPatients[0];
+      activePatientId = existingPatient.id;
+
+      // Reassign session to existing patient
+      await supabase
+        .from("intake_sessions")
+        .update({ patient_id: activePatientId })
+        .eq("id", sessionId);
+
+      // Update name if provided
+      if (data.patient_name) {
+        await supabase.from("patients").update({ name: data.patient_name }).eq("id", activePatientId);
+      }
+
+      // Fetch previous cases for context
+      const { data: prevCases } = await supabase
+        .from("cases")
+        .select("chief_complaint, structured_summary, created_at")
+        .eq("patient_id", activePatientId)
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (prevCases && prevCases.length > 0) {
+        const prevSummaries = prevCases.map((pc) => {
+          const ps = safeParseSummary(pc.structured_summary);
+          const date = new Date(pc.created_at).toLocaleDateString("ko-KR");
+          const treatments = (ps.treatment_interests || []).join(", ");
+          return `- ${date}: ${pc.chief_complaint || ""}${treatments ? ` (관심 시술: ${treatments})` : ""}`;
+        });
+        returningContext = `\n\n## 재방문 환자\n이 환자는 재방문입니다. 이전 상담 이력:\n${prevSummaries.join("\n")}\n\n"다시 방문해 주셨군요"와 같은 표현으로 자연스럽게 인사하세요. 이전 시술 이력을 참고하되, 이번 고민이 다를 수 있으니 새로운 고민에 집중하세요.`;
+      }
+
+      // Clean up the orphaned patient record
+      await supabase.from("patients").delete().eq("id", s.patient_id);
+
+      await logAuditEvent("returning_patient_detected", "agent_intake", "intake_session", sessionId, {
+        existing_patient_id: activePatientId,
+        previous_cases: prevCases?.length || 0,
+      });
+    } else {
+      // New patient — update record with name and phone
+      await supabase
+        .from("patients")
+        .update({
+          ...(data.patient_name ? { name: data.patient_name } : {}),
+          phone: data.patient_phone,
+        })
+        .eq("id", s.patient_id);
+    }
+  } else if (data.patient_name) {
+    await supabase.from("patients").update({ name: data.patient_name }).eq("id", s.patient_id);
   }
 
   // Build a human-readable summary of the quick collect data
@@ -228,8 +289,17 @@ async function handleQuickCollect(
     "deep_gather",
     fieldsCollected,
     fieldsMissing,
-    quickSummary
+    quickSummary,
+    undefined,
+    lang
   );
+  if (returningContext) {
+    systemPrompt += returningContext;
+  }
+  const treatmentGuide = getTreatmentGuidePrompt(data.treatment_interests || []);
+  if (treatmentGuide) {
+    systemPrompt += treatmentGuide;
+  }
   if (safetyInjection) {
     systemPrompt += safetyInjection;
   }
@@ -267,7 +337,8 @@ async function handleQuickCollect(
 
 async function handleMessage(
   sessionId: string,
-  message: string
+  message: string,
+  lang: Lang = "ko"
 ): Promise<NextResponse> {
   const { data: session, error: sessionErr } = await supabase
     .from("intake_sessions")
@@ -334,13 +405,22 @@ async function handleMessage(
     quickSummary = await getQuickSummaryFromHistory(sessionId);
   }
 
-  let systemPrompt = buildSystemPrompt(currentState, fieldsCollected, fieldsMissing, quickSummary, newExchange);
+  let systemPrompt = buildSystemPrompt(currentState, fieldsCollected, fieldsMissing, quickSummary, newExchange, lang);
 
   if (safety.level === "flag") {
     systemPrompt += buildFlagInjection(safety.matchedKeywords);
     await logAuditEvent("safety_keyword_detected", "agent_intake", "intake_session", sessionId, {
       matched_keywords: safety.matchedKeywords,
     });
+  }
+
+  // Inject treatment-specific guide from quick collect data
+  if (currentState === "deep_gather") {
+    const quickJson = await getQuickCollectJson(sessionId);
+    if (quickJson?.treatment_interests) {
+      const tGuide = getTreatmentGuidePrompt(quickJson.treatment_interests);
+      if (tGuide) systemPrompt += tGuide;
+    }
   }
 
   // Load conversation history
@@ -492,6 +572,28 @@ function buildQuickSummary(data: QuickCollectData): string {
   if (data.pregnancy_status)
     lines.push(`- 임신/수유: ${data.pregnancy_status} (확인 완료 — 다시 묻지 마세요)`);
   return lines.join("\n");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function safeParseSummary(str: string | null): Record<string, any> {
+  try { return JSON.parse(str || "{}"); } catch { return {}; }
+}
+
+async function getQuickCollectJson(sessionId: string): Promise<QuickCollectData | null> {
+  const { data: jsonMsg } = await supabase
+    .from("intake_messages")
+    .select("content_original")
+    .eq("session_id", sessionId)
+    .eq("role", "system")
+    .like("content_original", "[QUICK_COLLECT_JSON]%")
+    .limit(1);
+
+  if (jsonMsg && jsonMsg.length > 0) {
+    try {
+      return JSON.parse(jsonMsg[0].content_original.replace("[QUICK_COLLECT_JSON]", ""));
+    } catch { return null; }
+  }
+  return null;
 }
 
 async function getQuickSummaryFromHistory(sessionId: string): Promise<string | undefined> {

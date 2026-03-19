@@ -2,113 +2,40 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { QuickStep, QuickCollectData } from "@/lib/types";
+import { UI_STRINGS, detectLang, type Lang } from "@/lib/i18n";
 
 // ---- Quick Collect Step Definitions ----
 
-const QUICK_STEPS: QuickStep[] = [
-  {
-    id: "patient_name",
-    question: "성함을 알려주세요.",
-    type: "text",
-    options: [],
-    placeholder: "홍길동",
-  },
-  {
-    id: "patient_phone",
-    question: "연락 가능한 전화번호를 알려주세요.",
-    type: "text",
-    options: [],
-    placeholder: "010-0000-0000",
-  },
-  {
-    id: "skin_concerns",
-    question: "어떤 피부 고민이 있으신가요?",
-    type: "multi",
-    options: [
-      { label: "처짐 / 주름", value: "처짐/주름" },
-      { label: "기미 / 색소", value: "기미/색소" },
-      { label: "모공", value: "모공" },
-      { label: "여드름 / 흉터", value: "여드름/흉터" },
-      { label: "탄력 저하", value: "탄력" },
-      { label: "피부 톤 / 결", value: "피부톤/결" },
-    ],
-  },
-  {
-    id: "treatment_interests",
-    question: "관심 있는 시술이 있으신가요?",
-    type: "multi",
-    allowSkip: true,
-    skipLabel: "잘 모르겠어요",
-    options: [
-      { label: "튠페이스", value: "튠페이스" },
-      { label: "올타이트", value: "올타이트" },
-      { label: "울쎄라", value: "울쎄라" },
-      { label: "써마지", value: "써마지" },
-      { label: "온다", value: "온다" },
-      { label: "텐쎄라", value: "텐쎄라" },
-      { label: "텐써마", value: "텐써마" },
-      { label: "보톡스", value: "보톡스" },
-      { label: "필러", value: "필러" },
-      { label: "리쥬란", value: "리쥬란" },
-      { label: "리쥬란 아이", value: "리쥬란 아이" },
-      { label: "쥬베룩 스킨", value: "쥬베룩 스킨" },
-      { label: "쥬베룩 볼륨", value: "쥬베룩 볼륨" },
-      { label: "스킨부스터", value: "스킨부스터" },
-      { label: "레이저", value: "레이저" },
-      { label: "차마카세", value: "차마카세" },
-    ],
-  },
-  {
-    id: "age_range",
-    question: "연령대를 알려주세요.",
-    type: "single",
-    options: [
-      { label: "20대", value: "20대" },
-      { label: "30대", value: "30대" },
-      { label: "40대", value: "40대" },
-      { label: "50대", value: "50대" },
-      { label: "60대 이상", value: "60대 이상" },
-    ],
-  },
-  {
-    id: "gender",
-    question: "성별을 알려주세요.",
-    type: "single",
-    options: [
-      { label: "여성", value: "여성" },
-      { label: "남성", value: "남성" },
-    ],
-  },
-  {
-    id: "previous_treatments",
-    question: "이전에 피부 미용 시술을 받으신 적이 있으신가요?",
-    type: "single",
-    options: [
-      { label: "있음", value: "있음" },
-      { label: "없음", value: "없음" },
-    ],
-  },
-  {
-    id: "retinoid_use",
-    question: "레티놀(비타민A) 제품을 사용하고 계신가요?",
-    type: "single",
-    options: [
-      { label: "사용 중", value: "사용 중" },
-      { label: "사용 안 함", value: "사용 안 함" },
-      { label: "잘 모르겠어요", value: "모름" },
-    ],
-  },
-  {
-    id: "pregnancy_status",
-    question: "임신 또는 수유 중이신가요?",
-    type: "single",
-    options: [
-      { label: "해당 없음", value: "해당 없음" },
-      { label: "임신 중", value: "임신 중" },
-      { label: "수유 중", value: "수유 중" },
-    ],
-  },
-];
+function getQuickSteps(lang: Lang): QuickStep[] {
+  const t = UI_STRINGS[lang].steps;
+  return [
+    { id: "patient_name", question: t.patient_name.question, type: "text", options: [], placeholder: t.patient_name.placeholder },
+    { id: "patient_phone", question: t.patient_phone.question, type: "text", options: [], placeholder: t.patient_phone.placeholder },
+    { id: "skin_concerns", question: t.skin_concerns.question, type: "multi",
+      options: Object.entries(t.skin_concerns.options).map(([value, label]) => ({ label, value })) },
+    { id: "treatment_interests", question: t.treatment_interests.question, type: "multi", allowSkip: true, skipLabel: t.treatment_interests.skipLabel,
+      options: [
+        { label: "튠페이스", value: "튠페이스" }, { label: "올타이트", value: "올타이트" },
+        { label: "울쎄라", value: "울쎄라" }, { label: "써마지", value: "써마지" },
+        { label: "온다", value: "온다" }, { label: "텐쎄라", value: "텐쎄라" },
+        { label: "텐써마", value: "텐써마" }, { label: "보톡스", value: "보톡스" },
+        { label: "필러", value: "필러" }, { label: "리쥬란", value: "리쥬란" },
+        { label: "리쥬란 아이", value: "리쥬란 아이" }, { label: "쥬베룩 스킨", value: "쥬베룩 스킨" },
+        { label: "쥬베룩 볼륨", value: "쥬베룩 볼륨" }, { label: "스킨부스터", value: "스킨부스터" },
+        { label: "레이저", value: "레이저" }, { label: "차마카세", value: "차마카세" },
+      ] },
+    { id: "age_range", question: t.age_range.question, type: "single",
+      options: Object.entries(t.age_range.options).map(([value, label]) => ({ label, value })) },
+    { id: "gender", question: t.gender.question, type: "single",
+      options: Object.entries(t.gender.options).map(([value, label]) => ({ label, value })) },
+    { id: "previous_treatments", question: t.previous_treatments.question, type: "single",
+      options: Object.entries(t.previous_treatments.options).map(([value, label]) => ({ label, value })) },
+    { id: "retinoid_use", question: t.retinoid_use.question, type: "single",
+      options: Object.entries(t.retinoid_use.options).map(([value, label]) => ({ label, value })) },
+    { id: "pregnancy_status", question: t.pregnancy_status.question, type: "single",
+      options: Object.entries(t.pregnancy_status.options).map(([value, label]) => ({ label, value })) },
+  ];
+}
 
 // ---- Types ----
 
@@ -130,6 +57,7 @@ type PageState =
 // ---- Main Component ----
 
 export default function IntakePage() {
+  const [lang, setLang] = useState<Lang>("ko");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -156,16 +84,19 @@ export default function IntakePage() {
   }, [messages, quickStep, scrollToBottom]);
 
   useEffect(() => {
-    startSession();
+    const params = new URLSearchParams(window.location.search);
+    const detected = detectLang(params.get("lang"));
+    setLang(detected);
+    startSession(detected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function startSession() {
+  async function startSession(l: Lang = lang) {
     try {
       const res = await fetch("/api/intake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ lang: l }),
       });
       const data = await res.json();
       if (data.session_id) {
@@ -236,7 +167,7 @@ export default function IntakePage() {
 
   function advanceStep(currentData: Record<string, string[]>) {
     const nextStep = quickStep + 1;
-    if (nextStep >= QUICK_STEPS.length) {
+    if (nextStep >= quickSteps.length) {
       submitQuickCollect(currentData);
     } else {
       setQuickStep(nextStep);
@@ -281,6 +212,7 @@ export default function IntakePage() {
           session_id: sessionId,
           action: "quick_collect",
           data: payload,
+          lang,
         }),
       });
       const data = await res.json();
@@ -311,7 +243,7 @@ export default function IntakePage() {
       const res = await fetch("/api/intake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, message: trimmed }),
+        body: JSON.stringify({ session_id: sessionId, message: trimmed, lang }),
       });
       const data = await res.json();
       if (data.reply) {
@@ -344,7 +276,9 @@ export default function IntakePage() {
 
   const isTerminal = pageState === "complete" || pageState === "escalated";
   const isChatMode = pageState === "deep_gather" || pageState === "confirmation";
-  const currentStep = QUICK_STEPS[quickStep];
+  const quickSteps = getQuickSteps(lang);
+  const currentStep = quickSteps[quickStep];
+  const t = UI_STRINGS[lang];
 
   return (
     <div className="flex flex-col h-screen max-w-2xl mx-auto">
@@ -354,13 +288,13 @@ export default function IntakePage() {
           <span className="text-amber-700 font-bold text-[11px] leading-tight">에이전<br/>튠</span>
         </div>
         <div>
-          <h1 className="text-base font-bold text-slate-900">압구정튠의원 에이전튠 <span className="text-xs font-normal text-slate-400">Agentune</span></h1>
+          <h1 className="text-base font-bold text-slate-900">{t.headerTitle} <span className="text-xs font-normal text-slate-400">Agentune</span></h1>
           <p className="text-xs text-slate-500">
             {isTerminal
-              ? pageState === "complete" ? "상담 완료" : "에스컬레이션"
+              ? pageState === "complete" ? t.headerSubtitleComplete : t.headerSubtitleEscalated
               : pageState === "quick_collect"
-                ? "기본 정보 입력"
-                : "상담 진행 중"}
+                ? t.headerSubtitleQuickCollect
+                : t.headerSubtitle}
           </p>
         </div>
       </header>
@@ -370,12 +304,12 @@ export default function IntakePage() {
         <div className="bg-white border-b border-slate-100 px-6 py-2 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-slate-400 shrink-0">
-              {quickStep + 1} / {QUICK_STEPS.length}
+              {quickStep + 1} / {quickSteps.length}
             </span>
             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                style={{ width: `${((quickStep + 1) / QUICK_STEPS.length) * 100}%` }}
+                style={{ width: `${((quickStep + 1) / quickSteps.length) * 100}%` }}
               />
             </div>
           </div>
@@ -463,7 +397,7 @@ export default function IntakePage() {
                   className="w-full px-5 py-3 rounded-xl bg-amber-600 text-white text-sm font-bold
                     hover:bg-amber-700 disabled:opacity-40 disabled:hover:bg-amber-600 transition-all"
                 >
-                  다음
+                  {t.nextButton}
                 </button>
               </form>
             )}
@@ -510,7 +444,7 @@ export default function IntakePage() {
                       className="flex-1 px-5 py-3 rounded-xl border-2 border-slate-200
                         text-sm text-slate-500 hover:border-slate-300 transition-all"
                     >
-                      {currentStep.skipLabel || "건너뛰기"}
+                      {currentStep.skipLabel || t.skipLabel}
                     </button>
                   )}
                   <button
@@ -519,7 +453,7 @@ export default function IntakePage() {
                     className="flex-1 px-5 py-3 rounded-xl bg-amber-600 text-white text-sm font-bold
                       hover:bg-amber-700 disabled:opacity-40 disabled:hover:bg-amber-600 transition-all"
                   >
-                    다음
+                    {t.nextButton}
                   </button>
                 </div>
               </div>
@@ -542,8 +476,8 @@ export default function IntakePage() {
               onKeyDown={handleKeyDown}
               placeholder={
                 pageState === "chief_complaint"
-                  ? "편하게 피부 고민을 말씀해 주세요..."
-                  : "답변을 입력해 주세요..."
+                  ? t.chiefComplaintPlaceholder
+                  : t.replyPlaceholder
               }
               disabled={sending}
               rows={1}
@@ -575,9 +509,7 @@ export default function IntakePage() {
       {isTerminal && (
         <div className="border-t border-slate-200 bg-white px-6 py-4 text-center shrink-0">
           <p className="text-sm text-slate-500">
-            {pageState === "complete"
-              ? "상담이 완료되었습니다. 원장님이 확인 후 연락드리겠습니다."
-              : "긴급 상황으로 안내가 중단되었습니다. 병원(02-540-8011)으로 연락해 주세요."}
+            {pageState === "complete" ? t.completionMessage : t.escalationMessage}
           </p>
         </div>
       )}
@@ -585,12 +517,12 @@ export default function IntakePage() {
       {pageState === "error" && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-sm text-red-600 mb-2">연결에 실패했습니다.</p>
+            <p className="text-sm text-red-600 mb-2">{t.errorMessage}</p>
             <button
-              onClick={() => { setPageState("loading"); startSession(); }}
+              onClick={() => { setPageState("loading"); startSession(lang); }}
               className="text-sm text-amber-700 underline hover:text-amber-900"
             >
-              다시 시도
+              {t.retryButton}
             </button>
           </div>
         </div>
