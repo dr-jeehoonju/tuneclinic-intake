@@ -287,7 +287,9 @@ export default function IntakePage() {
       <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 shrink-0"
         style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
         <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-          <span className="text-amber-700 font-bold text-[10px] sm:text-[11px] leading-tight">에이전<br/>튠</span>
+          <svg className="w-5 h-5 sm:w-6 sm:h-6 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="8.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><circle cx="15.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><path d="M8 11V9a4 4 0 0 1 8 0v2" /><line x1="12" y1="2" x2="12" y2="5" /><circle cx="12" cy="2" r="1" fill="currentColor" stroke="none" />
+          </svg>
         </div>
         <div className="min-w-0">
           <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate">{t.headerTitle} <span className="text-[11px] sm:text-xs font-normal text-slate-400">Agentune</span></h1>
@@ -323,7 +325,9 @@ export default function IntakePage() {
         <div className="flex-1 flex flex-col items-center justify-center px-6 sm:px-10 overflow-y-auto overscroll-contain">
           <div className="max-w-md w-full text-center">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-5 sm:mb-6">
-              <span className="text-amber-700 font-bold text-sm sm:text-base leading-tight">에이전<br/>튠</span>
+              <svg className="w-8 h-8 sm:w-9 sm:h-9 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="8.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><circle cx="15.5" cy="16" r="1.5" fill="currentColor" stroke="none" /><path d="M8 11V9a4 4 0 0 1 8 0v2" /><line x1="12" y1="2" x2="12" y2="5" /><circle cx="12" cy="2" r="1" fill="currentColor" stroke="none" />
+              </svg>
             </div>
             <p className="text-[15px] sm:text-base text-slate-700 leading-relaxed whitespace-pre-wrap">
               {messages[0].content}
