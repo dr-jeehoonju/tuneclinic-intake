@@ -292,6 +292,7 @@ export default function IntakePage() {
     { value: "ko", label: "한국어" },
     { value: "en", label: "EN" },
     { value: "ja", label: "日本語" },
+    { value: "zh", label: "中文" },
   ];
 
   const isTerminal = pageState === "complete" || pageState === "escalated";

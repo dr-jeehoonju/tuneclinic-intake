@@ -1,4 +1,4 @@
-export type Lang = "ko" | "en" | "ja";
+export type Lang = "ko" | "en" | "ja" | "zh";
 
 export const UI_STRINGS: Record<Lang, {
   greeting: string;
@@ -132,9 +132,44 @@ export const UI_STRINGS: Record<Lang, {
       pregnancy_status: { question: "妊娠中または授乳中ですか？", options: { "해당 없음": "該当なし", "임신 중": "妊娠中", "수유 중": "授乳中" } },
     },
   },
+
+  zh: {
+    greeting: "您好，我是狎鸥亭Tune医院的Agentune——您追求自然美的伙伴。\n\n就像去人气餐厅前先看菜单一样，提前整理您的困扰，院长从一开始就能抓住重点。\n\n9道快速选择题和简短对话，大约2分钟即可完成。\n\n请告诉我您的皮肤困扰。",
+    chiefComplaintPlaceholder: "请告诉我您的皮肤困扰...",
+    replyPlaceholder: "请输入您的回答...",
+    nextButton: "下一步",
+    skipLabel: "不太清楚",
+    headerTitle: "狎鸥亭Tune医院 Agentune",
+    headerSubtitle: "咨询进行中",
+    headerSubtitleQuickCollect: "基本信息",
+    headerSubtitleComplete: "咨询完成",
+    headerSubtitleEscalated: "紧急升级",
+    completionMessage: "咨询已完成。院长确认后会联系您。",
+    escalationMessage: "情况紧急，请立即拨打医院电话 02-540-8011 或前往最近的急诊室。",
+    errorMessage: "连接失败。",
+    retryButton: "重试",
+    loadingText: "加载中...",
+    steps: {
+      patient_name: { question: "请告诉我您的姓名。", placeholder: "张三" },
+      patient_phone: { question: "请告诉我您的联系电话。", placeholder: "+86-138-0000-0000" },
+      skin_concerns: {
+        question: "您有什么皮肤困扰？",
+        options: { "처짐/주름": "松弛 / 皱纹", "기미/색소": "黄褐斑 / 色素", "모공": "毛孔", "여드름/흉터": "痘痘 / 疤痕", "탄력": "弹性下降", "피부톤/결": "肤色 / 肤质" },
+      },
+      treatment_interests: { question: "有感兴趣的项目吗？", skipLabel: "不太清楚" },
+      age_range: {
+        question: "请选择您的年龄段。",
+        options: { "20대": "20多岁", "30대": "30多岁", "40대": "40多岁", "50대": "50多岁", "60대 이상": "60岁以上" },
+      },
+      gender: { question: "请选择您的性别。", options: { "여성": "女", "남성": "男" } },
+      previous_treatments: { question: "您之前做过医美项目吗？", options: { "있음": "做过", "없음": "没有" } },
+      retinoid_use: { question: "您在使用视黄醇（维生素A）产品吗？", options: { "사용 중": "在使用", "사용 안 함": "未使用", "모름": "不清楚" } },
+      pregnancy_status: { question: "您是否怀孕或哺乳中？", options: { "해당 없음": "不适用", "임신 중": "怀孕中", "수유 중": "哺乳中" } },
+    },
+  },
 };
 
 export function detectLang(param: string | null): Lang {
-  if (param === "en" || param === "ja") return param;
+  if (param === "en" || param === "ja" || param === "zh") return param;
   return "ko";
 }

@@ -198,6 +198,7 @@ const LANG_INSTRUCTIONS: Record<Lang, string> = {
   ko: "",
   en: `\n\n## Language\nThe patient speaks English. Respond ONLY in English. Use polite, professional English. Do not use Korean in your responses.`,
   ja: `\n\n## Language\nThe patient speaks Japanese. Respond ONLY in Japanese. Use polite, professional Japanese (です/ます体). Do not use Korean in your responses.`,
+  zh: `\n\n## Language\nThe patient speaks Chinese. Respond ONLY in Simplified Chinese (简体中文). Use polite, professional Chinese. Do not use Korean in your responses.`,
 };
 
 const ALL_FIELDS = [
