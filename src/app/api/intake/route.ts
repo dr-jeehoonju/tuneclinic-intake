@@ -23,11 +23,9 @@ import type {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
-const MAX_HISTORY = 10;
+const MAX_HISTORY = 40;
 const OPEN_NARRATIVE_THRESHOLD = 3;
 
-// POST /api/intake  — create new session
-// POST /api/intake  — with session_id + message: chat exchange
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -60,14 +58,7 @@ async function createSession(): Promise<NextResponse> {
   if (patientErr || !patient) {
     console.error("Failed to create patient:", patientErr);
     return NextResponse.json(
-      {
-        error: "Failed to create patient",
-        detail: patientErr?.message,
-        hint: patientErr?.hint,
-        code: patientErr?.code,
-        supabase_url: process.env.SUPABASE_URL ? "set" : "missing",
-        supabase_key: process.env.SUPABASE_SERVICE_KEY ? "set" : "missing",
-      },
+      { error: "Failed to create patient", detail: patientErr?.message },
       { status: 500 }
     );
   }
@@ -94,23 +85,18 @@ async function createSession(): Promise<NextResponse> {
   }
 
   await saveMessage(session.id, "assistant", GREETING_MESSAGE, "greeting", 0);
-
   await logAuditEvent("intake_started", "agent_intake", "intake_session", session.id, {
     patient_id: patient.id,
-    channel: "web",
   });
-
   await transitionState(session.id, "greeting", "open_narrative", 0);
 
-  const resp: ChatResponse = {
+  return NextResponse.json({
     reply: GREETING_MESSAGE,
     state: "open_narrative",
     session_id: session.id,
     is_complete: false,
     is_escalated: false,
-  };
-
-  return NextResponse.json(resp);
+  } as ChatResponse);
 }
 
 async function handleMessage(
@@ -131,10 +117,7 @@ async function handleMessage(
 
   if (["complete", "escalated", "abandoned"].includes(s.current_state)) {
     return NextResponse.json({
-      reply:
-        s.current_state === "escalated"
-          ? EMERGENCY_RESPONSE
-          : COMPLETION_MESSAGE,
+      reply: s.current_state === "escalated" ? EMERGENCY_RESPONSE : COMPLETION_MESSAGE,
       state: s.current_state,
       session_id: sessionId,
       is_complete: s.current_state === "complete",
@@ -144,48 +127,20 @@ async function handleMessage(
 
   const newExchange = s.exchange_count + 1;
 
+  // Save patient message
   const nextSeq = await getNextSequenceNumber(sessionId);
-  await saveMessage(
-    sessionId,
-    "patient",
-    message,
-    s.current_state,
-    nextSeq
-  );
+  await saveMessage(sessionId, "patient", message, s.current_state, nextSeq);
 
-  await logAuditEvent(
-    "intake_message_received",
-    "agent_intake",
-    "intake_session",
-    sessionId,
-    { exchange_count: newExchange, state: s.current_state }
-  );
-
-  // --- Safety pre-processor ---
+  // --- Safety pre-processor (runs BEFORE Claude) ---
   const safety = checkSafetyKeywords(message);
 
   if (safety.level === "emergency") {
-    await transitionState(
-      sessionId,
-      s.current_state,
-      "escalated",
-      newExchange
-    );
+    await transitionState(sessionId, s.current_state, "escalated", newExchange);
     const seq = await getNextSequenceNumber(sessionId);
-    await saveMessage(
-      sessionId,
-      "assistant",
-      EMERGENCY_RESPONSE,
-      "escalated",
-      seq
-    );
-    await logAuditEvent(
-      "escalation_triggered",
-      "agent_intake",
-      "intake_session",
-      sessionId,
-      { matched_keywords: safety.matchedKeywords, level: "emergency" }
-    );
+    await saveMessage(sessionId, "assistant", EMERGENCY_RESPONSE, "escalated", seq);
+    await logAuditEvent("escalation_triggered", "agent_intake", "intake_session", sessionId, {
+      matched_keywords: safety.matchedKeywords,
+    });
     await notifyPhysician(sessionId, "EMERGENCY", safety.matchedKeywords);
 
     return NextResponse.json({
@@ -199,92 +154,90 @@ async function handleMessage(
 
   // --- State transition: open_narrative → structured_gathering ---
   let currentState = s.current_state as IntakeState;
-  if (
-    currentState === "open_narrative" &&
-    newExchange >= OPEN_NARRATIVE_THRESHOLD
-  ) {
+  if (currentState === "open_narrative" && newExchange >= OPEN_NARRATIVE_THRESHOLD) {
     currentState = "structured_gathering";
-    await transitionState(
-      sessionId,
-      "open_narrative",
-      "structured_gathering",
-      newExchange
-    );
+    await transitionState(sessionId, "open_narrative", "structured_gathering", newExchange);
   }
 
-  // --- Build system prompt ---
-  let systemPrompt = buildSystemPrompt(
-    currentState,
-    s.fields_collected || [],
-    s.fields_missing || computeMissingFields(s.fields_collected || [])
-  );
+  // --- Extract fields from conversation so far (for structured_gathering) ---
+  let fieldsCollected = s.fields_collected || [];
+  let fieldsMissing = s.fields_missing || computeMissingFields(fieldsCollected);
+
+  if (currentState === "structured_gathering" || currentState === "confirmation") {
+    const extracted = await extractFieldsFromHistory(sessionId);
+    fieldsCollected = extracted;
+    fieldsMissing = computeMissingFields(extracted);
+
+    await supabase
+      .from("intake_sessions")
+      .update({ fields_collected: fieldsCollected, fields_missing: fieldsMissing })
+      .eq("id", sessionId);
+  }
+
+  // --- Build system prompt with actual field status ---
+  let systemPrompt = buildSystemPrompt(currentState, fieldsCollected, fieldsMissing);
 
   if (safety.level === "flag") {
     systemPrompt += buildFlagInjection(safety.matchedKeywords);
-    await logAuditEvent(
-      "safety_keyword_detected",
-      "agent_intake",
-      "intake_session",
-      sessionId,
-      { matched_keywords: safety.matchedKeywords, level: "flag" }
-    );
+    await logAuditEvent("safety_keyword_detected", "agent_intake", "intake_session", sessionId, {
+      matched_keywords: safety.matchedKeywords,
+    });
   }
 
-  // --- Load conversation history ---
+  // --- Load FULL conversation history ---
   const history = await getConversationHistory(sessionId);
 
-  // --- Claude API call ---
-  const messages: Anthropic.MessageParam[] = history.map((m) => ({
-    role: m.role === "patient" ? ("user" as const) : ("assistant" as const),
-    content: m.content_original,
-  }));
+  // Build Claude messages from stored history (already includes the patient message we just saved)
+  const messages: Anthropic.MessageParam[] = [];
+  for (const m of history) {
+    const role = m.role === "patient" ? "user" as const : "assistant" as const;
+    // Merge consecutive same-role messages (shouldn't happen, but safety net)
+    if (messages.length > 0 && messages[messages.length - 1].role === role) {
+      messages[messages.length - 1] = {
+        role,
+        content: messages[messages.length - 1].content + "\n" + m.content_original,
+      };
+    } else {
+      messages.push({ role, content: m.content_original });
+    }
+  }
 
-  messages.push({ role: "user", content: message });
+  // Ensure messages start with user and alternate properly
+  if (messages.length > 0 && messages[0].role === "assistant") {
+    messages.shift();
+  }
 
-  const tools =
-    currentState === "structured_gathering" || currentState === "confirmation"
-      ? [COMPLETE_INTAKE_TOOL]
-      : [];
+  const shouldOfferTool =
+    currentState === "structured_gathering" || currentState === "confirmation";
+
+  // --- Auto-transition to confirmation at exchange 8+ ---
+  if (currentState === "structured_gathering" && newExchange >= 8) {
+    currentState = "confirmation";
+    await transitionState(sessionId, "structured_gathering", "confirmation", newExchange);
+    systemPrompt = buildSystemPrompt("confirmation", fieldsCollected, fieldsMissing);
+  }
 
   const claudeResponse = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 1024,
     system: systemPrompt,
     messages,
-    tools: tools.length > 0 ? tools : undefined,
+    tools: shouldOfferTool ? [COMPLETE_INTAKE_TOOL] : undefined,
   });
 
   // --- Handle tool use (complete_intake) ---
   if (claudeResponse.stop_reason === "tool_use") {
-    const toolBlock = claudeResponse.content.find(
-      (block) => block.type === "tool_use"
-    );
-    const textBlock = claudeResponse.content.find(
-      (block) => block.type === "text"
-    );
+    const toolBlock = claudeResponse.content.find((b) => b.type === "tool_use");
+    const textBlock = claudeResponse.content.find((b) => b.type === "text");
 
     if (toolBlock && toolBlock.type === "tool_use") {
       const intakeData = toolBlock.input as CompleteIntakeInput;
       const assistantReply =
-        textBlock && textBlock.type === "text"
-          ? textBlock.text
-          : COMPLETION_MESSAGE;
+        textBlock && textBlock.type === "text" ? textBlock.text : COMPLETION_MESSAGE;
 
-      await transitionState(
-        sessionId,
-        currentState,
-        "structuring",
-        newExchange
-      );
-
+      await transitionState(sessionId, currentState, "structuring", newExchange);
       await createCase(sessionId, s.patient_id, intakeData);
-
-      await transitionState(
-        sessionId,
-        "structuring",
-        "complete",
-        newExchange
-      );
+      await transitionState(sessionId, "structuring", "complete", newExchange);
 
       const seq = await getNextSequenceNumber(sessionId);
       await saveMessage(sessionId, "assistant", assistantReply, "complete", seq);
@@ -300,11 +253,7 @@ async function handleMessage(
         })
         .eq("id", sessionId);
 
-      await notifyPhysician(
-        sessionId,
-        intakeData.urgency.toUpperCase(),
-        intakeData.risk_flags
-      );
+      await notifyPhysician(sessionId, intakeData.urgency.toUpperCase(), intakeData.risk_flags);
 
       return NextResponse.json({
         reply: assistantReply,
@@ -317,57 +266,23 @@ async function handleMessage(
   }
 
   // --- Handle normal text response ---
-  const textBlock = claudeResponse.content.find(
-    (block) => block.type === "text"
-  );
+  const textBlock = claudeResponse.content.find((b) => b.type === "text");
   const assistantReply =
     textBlock && textBlock.type === "text"
       ? textBlock.text
       : "죄송합니다, 응답을 생성하지 못했습니다.";
 
   const seq = await getNextSequenceNumber(sessionId);
-  await saveMessage(
-    sessionId,
-    "assistant",
-    assistantReply,
-    currentState,
-    seq
-  );
-
-  // Update session exchange count and possibly state
-  let nextState = currentState;
-  if (
-    currentState === "structured_gathering" &&
-    newExchange >= 8
-  ) {
-    nextState = "confirmation";
-    await transitionState(
-      sessionId,
-      "structured_gathering",
-      "confirmation",
-      newExchange
-    );
-  }
+  await saveMessage(sessionId, "assistant", assistantReply, currentState, seq);
 
   await supabase
     .from("intake_sessions")
-    .update({
-      current_state: nextState,
-      exchange_count: newExchange,
-    })
+    .update({ current_state: currentState, exchange_count: newExchange })
     .eq("id", sessionId);
-
-  await logAuditEvent(
-    "intake_message_sent",
-    "agent_intake",
-    "intake_session",
-    sessionId,
-    { exchange_count: newExchange, state: nextState }
-  );
 
   return NextResponse.json({
     reply: assistantReply,
-    state: nextState,
+    state: currentState,
     session_id: sessionId,
     is_complete: false,
     is_escalated: false,
@@ -403,9 +318,7 @@ async function getNextSequenceNumber(sessionId: string): Promise<number> {
   return data && data.length > 0 ? data[0].sequence_number + 1 : 0;
 }
 
-async function getConversationHistory(
-  sessionId: string
-): Promise<IntakeMessage[]> {
+async function getConversationHistory(sessionId: string): Promise<IntakeMessage[]> {
   const { data } = await supabase
     .from("intake_messages")
     .select("*")
@@ -414,6 +327,71 @@ async function getConversationHistory(
     .limit(MAX_HISTORY);
 
   return (data as IntakeMessage[]) || [];
+}
+
+/**
+ * Analyze conversation history to determine which fields have been collected.
+ * Uses keyword detection on the full conversation — no LLM call needed.
+ */
+async function extractFieldsFromHistory(sessionId: string): Promise<string[]> {
+  const history = await getConversationHistory(sessionId);
+  const fullText = history.map((m) => m.content_original).join("\n");
+  const lower = fullText.toLowerCase();
+
+  const fields: string[] = [];
+
+  // chief_complaint: always collected after first patient message
+  const patientMessages = history.filter((m) => m.role === "patient");
+  if (patientMessages.length > 0) fields.push("chief_complaint");
+
+  // age
+  if (/\d{2}세|\d{2}살|\d{2}대/.test(fullText)) fields.push("age_range");
+
+  // gender
+  if (/여성|남성|여자|남자/.test(fullText)) fields.push("gender");
+
+  // skin type / sun reaction
+  if (/빨갛|갈색|타|타는|햇볕|자외선|차단제|선크림/.test(lower))
+    fields.push("fitzpatrick_estimate");
+
+  // skincare
+  if (/스킨케어|레티놀|비타민a|세럼|크림|화장품|쓰는.*제품|쓰시는/.test(lower))
+    fields.push("current_skincare");
+  if (/없어요.*제품|없어요.*그런|안 써|안써/.test(lower) && !fields.includes("current_skincare"))
+    fields.push("current_skincare");
+
+  // sun exposure
+  if (/야외|자외선|선크림|차단제|해변|리조트|바다/.test(lower))
+    fields.push("sun_exposure");
+
+  // previous treatments
+  if (/울쎄라|써마지|보톡스|필러|레이저|IPL|피코|리프팅|시술.*받|받아.*봤/.test(lower))
+    fields.push("previous_treatments");
+
+  // allergies
+  if (/알레르기|알러지/.test(lower)) fields.push("allergies");
+
+  // medications
+  if (/로아큐탄|이소트레|약.*복용|먹는.*약|약물/.test(lower)) fields.push("medications");
+
+  // pregnancy
+  if (/임신|수유|모유/.test(lower)) fields.push("pregnancy_status");
+
+  // budget
+  if (/예산|만원|비용|가격|얼마/.test(lower)) fields.push("budget_range");
+
+  // timeline
+  if (/결혼|면접|일정|여행|행사|급하|언제까지/.test(lower)) fields.push("timeline");
+
+  // skin concerns
+  if (/기미|잡티|색소|모공|주름|처짐|탄력|여드름|흉터|볼살|리프팅|탈모/.test(lower))
+    fields.push("skin_concerns");
+
+  // treatment interests
+  if (/울쎄라|써마지|보톡스|필러|레이저|피코|IPL|주사|스킨부스터|쥬벨룩|리쥬란/.test(lower))
+    fields.push("treatment_interests");
+
+  return [...new Set(fields)];
 }
 
 async function transitionState(
@@ -427,13 +405,11 @@ async function transitionState(
     .update({ current_state: to, exchange_count: exchangeCount })
     .eq("id", sessionId);
 
-  await logAuditEvent(
-    "intake_state_transition",
-    "agent_intake",
-    "intake_session",
-    sessionId,
-    { from, to, exchange_count: exchangeCount }
-  );
+  await logAuditEvent("intake_state_transition", "agent_intake", "intake_session", sessionId, {
+    from,
+    to,
+    exchange_count: exchangeCount,
+  });
 }
 
 async function createCase(
@@ -462,10 +438,7 @@ async function createCase(
         budget_range: data.budget_range,
         timeline: data.timeline,
       }),
-      risk_flags: data.risk_flags.map((flag) => ({
-        flag,
-        detail: flag,
-      })),
+      risk_flags: data.risk_flags.map((flag) => ({ flag, detail: flag })),
       missing_info: (data.fields_missing || []).map((field) => ({
         field,
         reason: "환자가 언급하지 않음",
@@ -481,26 +454,16 @@ async function createCase(
     return;
   }
 
-  await logAuditEvent(
-    "case_created",
-    "agent_intake",
-    "case",
-    caseData.id,
-    {
-      session_id: sessionId,
-      patient_id: patientId,
-      urgency: data.urgency,
-      risk_flags_count: data.risk_flags.length,
-    }
-  );
+  await logAuditEvent("case_created", "agent_intake", "case", caseData.id, {
+    session_id: sessionId,
+    patient_id: patientId,
+    urgency: data.urgency,
+    risk_flags_count: data.risk_flags.length,
+  });
 
-  await logAuditEvent(
-    "intake_completed",
-    "agent_intake",
-    "intake_session",
-    sessionId,
-    { case_id: caseData.id }
-  );
+  await logAuditEvent("intake_completed", "agent_intake", "intake_session", sessionId, {
+    case_id: caseData.id,
+  });
 }
 
 async function logAuditEvent(
@@ -524,30 +487,20 @@ async function logAuditEvent(
   }
 }
 
-async function notifyPhysician(
-  sessionId: string,
-  urgency: string,
-  flags: string[]
-) {
+async function notifyPhysician(sessionId: string, urgency: string, flags: string[]) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-
   if (!token || !chatId) return;
 
-  const flagText =
-    flags.length > 0 ? `\nFlags: ${flags.join(", ")}` : "\nFlags: 없음";
-
+  const flagText = flags.length > 0 ? `\nFlags: ${flags.join(", ")}` : "\nFlags: 없음";
   const text = `[Tuneclinic Intake] ${urgency}\nSession: ${sessionId}${flagText}`;
 
   try {
-    await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text }),
-      }
-    );
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
   } catch (err) {
     console.error("Telegram notification error:", err);
   }
