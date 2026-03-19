@@ -344,7 +344,7 @@ export default function IntakePage() {
           <span className="text-amber-700 font-bold text-[11px] leading-tight">에이전<br/>튠</span>
         </div>
         <div>
-          <h1 className="text-base font-bold text-slate-900">에이전튠 <span className="text-xs font-normal text-slate-400">Agentune</span></h1>
+          <h1 className="text-base font-bold text-slate-900">압구정튠의원 에이전튠 <span className="text-xs font-normal text-slate-400">Agentune</span></h1>
           <p className="text-xs text-slate-500">
             {isTerminal
               ? pageState === "complete" ? "상담 완료" : "에스컬레이션"
