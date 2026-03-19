@@ -19,21 +19,29 @@ import type {
   IntakeMessage,
   ChatResponse,
   CompleteIntakeInput,
+  QuickCollectData,
 } from "@/lib/types";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 const MAX_HISTORY = 40;
-const OPEN_NARRATIVE_THRESHOLD = 3;
+const DEEP_GATHER_MAX = 4;
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    if (!body.session_id && !body.message) {
+    // Create new session
+    if (!body.session_id && !body.message && !body.action) {
       return createSession();
     }
 
+    // Quick collect submission
+    if (body.session_id && body.action === "quick_collect" && body.data) {
+      return handleQuickCollect(body.session_id, body.data as QuickCollectData);
+    }
+
+    // Chat message (deep_gather / confirmation)
     if (body.session_id && body.message) {
       return handleMessage(body.session_id, body.message);
     }
@@ -88,12 +96,118 @@ async function createSession(): Promise<NextResponse> {
   await logAuditEvent("intake_started", "agent_intake", "intake_session", session.id, {
     patient_id: patient.id,
   });
-  await transitionState(session.id, "greeting", "open_narrative", 0);
 
   return NextResponse.json({
     reply: GREETING_MESSAGE,
-    state: "open_narrative",
+    state: "greeting",
     session_id: session.id,
+    is_complete: false,
+    is_escalated: false,
+  } as ChatResponse);
+}
+
+/**
+ * Handle quick_collect: receive all click-form data at once,
+ * store it, transition to deep_gather, and get first Claude response.
+ */
+async function handleQuickCollect(
+  sessionId: string,
+  data: QuickCollectData
+): Promise<NextResponse> {
+  const { data: session, error: sessionErr } = await supabase
+    .from("intake_sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .single();
+
+  if (sessionErr || !session) {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+
+  const s = session as IntakeSession;
+
+  // Build fields collected from quick collect data
+  const fieldsCollected: string[] = ["chief_complaint", "skin_concerns"];
+  if (data.age_range) fieldsCollected.push("age_range");
+  if (data.gender) fieldsCollected.push("gender");
+  if (data.treatment_interests?.length > 0) fieldsCollected.push("treatment_interests");
+  if (data.previous_treatments) fieldsCollected.push("previous_treatments");
+  if (data.retinoid_use) fieldsCollected.push("current_skincare");
+  if (data.pregnancy_status) fieldsCollected.push("pregnancy_status");
+
+  const fieldsMissing = computeMissingFields(fieldsCollected);
+
+  // Build a human-readable summary of the quick collect data
+  const quickSummary = buildQuickSummary(data);
+
+  // Store the quick collect as a system message for context
+  const seq = await getNextSequenceNumber(sessionId);
+  await saveMessage(
+    sessionId,
+    "system",
+    `[사전 설문 결과]\n${quickSummary}`,
+    "quick_collect",
+    seq
+  );
+
+  // Store patient's chief complaint as a patient message
+  const seq2 = await getNextSequenceNumber(sessionId);
+  await saveMessage(
+    sessionId,
+    "patient",
+    data.chief_complaint,
+    "quick_collect",
+    seq2
+  );
+
+  // Transition to deep_gather
+  await supabase
+    .from("intake_sessions")
+    .update({
+      current_state: "deep_gather",
+      exchange_count: 1,
+      fields_collected: fieldsCollected,
+      fields_missing: fieldsMissing,
+    })
+    .eq("id", sessionId);
+
+  await logAuditEvent("intake_state_transition", "agent_intake", "intake_session", sessionId, {
+    from: "quick_collect",
+    to: "deep_gather",
+    quick_collect_fields: fieldsCollected,
+  });
+
+  // Call Claude for first deep_gather response
+  const systemPrompt = buildSystemPrompt(
+    "deep_gather",
+    fieldsCollected,
+    fieldsMissing,
+    quickSummary
+  );
+
+  const claudeResponse = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: [
+      { role: "user", content: data.chief_complaint },
+    ],
+    tools: [COMPLETE_INTAKE_TOOL],
+  });
+
+  const textBlock = claudeResponse.content.find((b) => b.type === "text");
+  const assistantReply =
+    textBlock && textBlock.type === "text"
+      ? textBlock.text
+      : "감사합니다. 몇 가지만 더 여쭤보겠습니다.";
+
+  const seq3 = await getNextSequenceNumber(sessionId);
+  await saveMessage(sessionId, "assistant", assistantReply, "deep_gather", seq3);
+
+  return NextResponse.json({
+    reply: assistantReply,
+    state: "deep_gather",
+    session_id: sessionId,
     is_complete: false,
     is_escalated: false,
   } as ChatResponse);
@@ -131,7 +245,7 @@ async function handleMessage(
   const nextSeq = await getNextSequenceNumber(sessionId);
   await saveMessage(sessionId, "patient", message, s.current_state, nextSeq);
 
-  // --- Safety pre-processor (runs BEFORE Claude) ---
+  // --- Safety pre-processor ---
   const safety = checkSafetyKeywords(message);
 
   if (safety.level === "emergency") {
@@ -152,30 +266,23 @@ async function handleMessage(
     } as ChatResponse);
   }
 
-  // --- State transition: open_narrative → structured_gathering ---
   let currentState = s.current_state as IntakeState;
-  if (currentState === "open_narrative" && newExchange >= OPEN_NARRATIVE_THRESHOLD) {
-    currentState = "structured_gathering";
-    await transitionState(sessionId, "open_narrative", "structured_gathering", newExchange);
+  const fieldsCollected = s.fields_collected || [];
+  const fieldsMissing = s.fields_missing || computeMissingFields(fieldsCollected);
+
+  // Auto-transition deep_gather → confirmation after enough exchanges
+  if (currentState === "deep_gather" && newExchange >= DEEP_GATHER_MAX) {
+    currentState = "confirmation";
+    await transitionState(sessionId, "deep_gather", "confirmation", newExchange);
   }
 
-  // --- Extract fields from conversation so far (for structured_gathering) ---
-  let fieldsCollected = s.fields_collected || [];
-  let fieldsMissing = s.fields_missing || computeMissingFields(fieldsCollected);
-
-  if (currentState === "structured_gathering" || currentState === "confirmation") {
-    const extracted = await extractFieldsFromHistory(sessionId);
-    fieldsCollected = extracted;
-    fieldsMissing = computeMissingFields(extracted);
-
-    await supabase
-      .from("intake_sessions")
-      .update({ fields_collected: fieldsCollected, fields_missing: fieldsMissing })
-      .eq("id", sessionId);
+  // Build system prompt — for deep_gather, reconstruct quickSummary from system message
+  let quickSummary: string | undefined;
+  if (currentState === "deep_gather") {
+    quickSummary = await getQuickSummaryFromHistory(sessionId);
   }
 
-  // --- Build system prompt with actual field status ---
-  let systemPrompt = buildSystemPrompt(currentState, fieldsCollected, fieldsMissing);
+  let systemPrompt = buildSystemPrompt(currentState, fieldsCollected, fieldsMissing, quickSummary);
 
   if (safety.level === "flag") {
     systemPrompt += buildFlagInjection(safety.matchedKeywords);
@@ -184,14 +291,13 @@ async function handleMessage(
     });
   }
 
-  // --- Load FULL conversation history ---
+  // Load conversation history
   const history = await getConversationHistory(sessionId);
 
-  // Build Claude messages from stored history (already includes the patient message we just saved)
   const messages: Anthropic.MessageParam[] = [];
   for (const m of history) {
+    if (m.role === "system") continue;
     const role = m.role === "patient" ? "user" as const : "assistant" as const;
-    // Merge consecutive same-role messages (shouldn't happen, but safety net)
     if (messages.length > 0 && messages[messages.length - 1].role === role) {
       messages[messages.length - 1] = {
         role,
@@ -202,20 +308,12 @@ async function handleMessage(
     }
   }
 
-  // Ensure messages start with user and alternate properly
   if (messages.length > 0 && messages[0].role === "assistant") {
     messages.shift();
   }
 
   const shouldOfferTool =
-    currentState === "structured_gathering" || currentState === "confirmation";
-
-  // --- Auto-transition to confirmation at exchange 8+ ---
-  if (currentState === "structured_gathering" && newExchange >= 8) {
-    currentState = "confirmation";
-    await transitionState(sessionId, "structured_gathering", "confirmation", newExchange);
-    systemPrompt = buildSystemPrompt("confirmation", fieldsCollected, fieldsMissing);
-  }
+    currentState === "deep_gather" || currentState === "confirmation";
 
   const claudeResponse = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
@@ -265,7 +363,7 @@ async function handleMessage(
     }
   }
 
-  // --- Handle normal text response ---
+  // --- Normal text response ---
   const textBlock = claudeResponse.content.find((b) => b.type === "text");
   const assistantReply =
     textBlock && textBlock.type === "text"
@@ -290,6 +388,38 @@ async function handleMessage(
 }
 
 // ---- Helper functions ----
+
+function buildQuickSummary(data: QuickCollectData): string {
+  const lines: string[] = [];
+  lines.push(`주 호소: ${data.chief_complaint}`);
+  if (data.skin_concerns?.length > 0)
+    lines.push(`피부 고민: ${data.skin_concerns.join(", ")}`);
+  if (data.treatment_interests?.length > 0)
+    lines.push(`관심 시술: ${data.treatment_interests.join(", ")}`);
+  if (data.age_range) lines.push(`연령대: ${data.age_range}`);
+  if (data.gender) lines.push(`성별: ${data.gender}`);
+  if (data.previous_treatments)
+    lines.push(`이전 시술 경험: ${data.previous_treatments}`);
+  if (data.retinoid_use) lines.push(`레티놀/비타민A 사용: ${data.retinoid_use}`);
+  if (data.pregnancy_status)
+    lines.push(`임신/수유: ${data.pregnancy_status}`);
+  return lines.join("\n");
+}
+
+async function getQuickSummaryFromHistory(sessionId: string): Promise<string | undefined> {
+  const { data } = await supabase
+    .from("intake_messages")
+    .select("content_original")
+    .eq("session_id", sessionId)
+    .eq("role", "system")
+    .order("sequence_number", { ascending: true })
+    .limit(1);
+
+  if (data && data.length > 0) {
+    return data[0].content_original.replace("[사전 설문 결과]\n", "");
+  }
+  return undefined;
+}
 
 async function saveMessage(
   sessionId: string,
@@ -327,71 +457,6 @@ async function getConversationHistory(sessionId: string): Promise<IntakeMessage[
     .limit(MAX_HISTORY);
 
   return (data as IntakeMessage[]) || [];
-}
-
-/**
- * Analyze conversation history to determine which fields have been collected.
- * Uses keyword detection on the full conversation — no LLM call needed.
- */
-async function extractFieldsFromHistory(sessionId: string): Promise<string[]> {
-  const history = await getConversationHistory(sessionId);
-  const fullText = history.map((m) => m.content_original).join("\n");
-  const lower = fullText.toLowerCase();
-
-  const fields: string[] = [];
-
-  // chief_complaint: always collected after first patient message
-  const patientMessages = history.filter((m) => m.role === "patient");
-  if (patientMessages.length > 0) fields.push("chief_complaint");
-
-  // age
-  if (/\d{2}세|\d{2}살|\d{2}대/.test(fullText)) fields.push("age_range");
-
-  // gender
-  if (/여성|남성|여자|남자/.test(fullText)) fields.push("gender");
-
-  // skin type / sun reaction
-  if (/빨갛|갈색|타|타는|햇볕|자외선|차단제|선크림/.test(lower))
-    fields.push("fitzpatrick_estimate");
-
-  // skincare
-  if (/스킨케어|레티놀|비타민a|세럼|크림|화장품|쓰는.*제품|쓰시는/.test(lower))
-    fields.push("current_skincare");
-  if (/없어요.*제품|없어요.*그런|안 써|안써/.test(lower) && !fields.includes("current_skincare"))
-    fields.push("current_skincare");
-
-  // sun exposure
-  if (/야외|자외선|선크림|차단제|해변|리조트|바다/.test(lower))
-    fields.push("sun_exposure");
-
-  // previous treatments
-  if (/울쎄라|써마지|보톡스|필러|레이저|IPL|피코|리프팅|시술.*받|받아.*봤/.test(lower))
-    fields.push("previous_treatments");
-
-  // allergies
-  if (/알레르기|알러지/.test(lower)) fields.push("allergies");
-
-  // medications
-  if (/로아큐탄|이소트레|약.*복용|먹는.*약|약물/.test(lower)) fields.push("medications");
-
-  // pregnancy
-  if (/임신|수유|모유/.test(lower)) fields.push("pregnancy_status");
-
-  // budget
-  if (/예산|만원|비용|가격|얼마/.test(lower)) fields.push("budget_range");
-
-  // timeline
-  if (/결혼|면접|일정|여행|행사|급하|언제까지/.test(lower)) fields.push("timeline");
-
-  // skin concerns
-  if (/기미|잡티|색소|모공|주름|처짐|탄력|여드름|흉터|볼살|리프팅|탈모/.test(lower))
-    fields.push("skin_concerns");
-
-  // treatment interests
-  if (/울쎄라|써마지|보톡스|필러|레이저|피코|IPL|주사|스킨부스터|쥬벨룩|리쥬란/.test(lower))
-    fields.push("treatment_interests");
-
-  return [...new Set(fields)];
 }
 
 async function transitionState(

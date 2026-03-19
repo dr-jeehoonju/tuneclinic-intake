@@ -157,6 +157,24 @@ complete_intake 호출 시 주의사항:
 
 complete_intake 호출과 동시에, 환자에게 보여줄 마지막 메시지도 생성하세요:
 "원장님이 상담 전에 케이스를 확인하실 예정입니다. 좋은 상담이 되도록 준비하겠습니다. 감사합니다."`,
+
+  deep_gather: `## 현재 단계: 상세 정보 수집
+
+환자가 사전 설문을 통해 기본 정보를 이미 제공했습니다:
+{quick_summary}
+
+아직 확인이 필요한 부분:
+{fields_missing}
+
+규칙:
+- 사전 설문에서 이미 수집된 정보를 절대 다시 묻지 마세요.
+- 환자의 고민 유형에 따라 구체적인 상세만 2~3개 물어보세요.
+- 이전 시술 경험이 있다면 → 어떤 시술, 언제, 결과를 물어보세요.
+- 고민 부위나 시기 등 원장님 상담에 필요한 구체적 정보를 수집하세요.
+- 질문은 최대 2~3회만. 환자가 충분히 답변하면 바로 complete_intake을 호출하세요.
+- 한 번에 하나의 질문만 합니다.
+- 첫 응답에서는 사전 설문 내용을 간단히 확인하며 시작하세요. 예: "볼 처짐과 탄력 개선에 관심이 있으시군요."`,
+
 };
 
 export const GREETING_MESSAGE =
@@ -185,7 +203,8 @@ const ALL_FIELDS = [
 export function buildSystemPrompt(
   state: string,
   fieldsCollected: string[],
-  fieldsMissing: string[]
+  fieldsMissing: string[],
+  quickSummary?: string
 ): string {
   let prompt = BASE_PROMPT;
 
@@ -205,6 +224,19 @@ export function buildSystemPrompt(
           fieldsMissing.length > 0
             ? fieldsMissing.map((f) => `- ${f}`).join("\n")
             : "- (모두 수집 완료)"
+        );
+    }
+    if (state === "deep_gather") {
+      injected = injected
+        .replace(
+          "{quick_summary}",
+          quickSummary || "(사전 설문 데이터 없음)"
+        )
+        .replace(
+          "{fields_missing}",
+          fieldsMissing.length > 0
+            ? fieldsMissing.map((f) => `- ${f}`).join("\n")
+            : "- (추가 수집 불필요)"
         );
     }
     prompt += "\n\n" + injected;

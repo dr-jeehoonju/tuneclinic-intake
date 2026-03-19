@@ -1,7 +1,8 @@
 export type IntakeState =
   | "greeting"
   | "open_narrative"
-  | "structured_gathering"
+  | "quick_collect"
+  | "deep_gather"
   | "confirmation"
   | "structuring"
   | "complete"
@@ -11,6 +12,26 @@ export type IntakeState =
 export type UrgencyLevel = "normal" | "elevated" | "urgent";
 
 export type SafetyLevel = "clear" | "emergency" | "flag";
+
+export interface QuickStep {
+  id: string;
+  question: string;
+  type: "single" | "multi";
+  options: { label: string; value: string }[];
+  allowSkip?: boolean;
+  skipLabel?: string;
+}
+
+export interface QuickCollectData {
+  chief_complaint: string;
+  skin_concerns: string[];
+  treatment_interests: string[];
+  age_range: string;
+  gender: string;
+  previous_treatments: string;
+  retinoid_use: string;
+  pregnancy_status: string;
+}
 
 export interface IntakeSession {
   id: string;
@@ -56,11 +77,6 @@ export interface CompleteIntakeInput {
   fields_missing?: string[];
   risk_flags: string[];
   urgency: UrgencyLevel;
-}
-
-export interface ChatRequest {
-  session_id: string;
-  message: string;
 }
 
 export interface ChatResponse {
