@@ -289,10 +289,10 @@ export default function IntakePage() {
   }
 
   const LANG_OPTIONS: { value: Lang; label: string }[] = [
-    { value: "ko", label: "한국어" },
-    { value: "en", label: "EN" },
-    { value: "ja", label: "日本語" },
-    { value: "zh", label: "中文" },
+    { value: "ko", label: "KOR" },
+    { value: "en", label: "ENG" },
+    { value: "ja", label: "JPN" },
+    { value: "zh", label: "CHN" },
   ];
 
   const isTerminal = pageState === "complete" || pageState === "escalated";
