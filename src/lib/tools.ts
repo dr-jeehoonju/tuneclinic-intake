@@ -11,6 +11,14 @@ export const COMPLETE_INTAKE_TOOL = {
         description:
           "환자가 직접 한 말 그대로. 절대 요약하거나 의학 용어로 바꾸지 않는다.",
       },
+      patient_name: {
+        type: "string",
+        description: "환자 이름. 사전 설문에서 수집된 경우 그대로 전달.",
+      },
+      patient_phone: {
+        type: "string",
+        description: "환자 연락처. 사전 설문에서 수집된 경우 그대로 전달.",
+      },
       skin_concerns: {
         type: "array",
         items: { type: "string" },

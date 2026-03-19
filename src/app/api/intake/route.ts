@@ -709,6 +709,21 @@ async function createCase(
   patientId: string,
   data: CompleteIntakeInput
 ) {
+  // Fallback: if name/phone missing from tool call, fetch from patients table
+  let patientName = data.patient_name || "";
+  let patientPhone = data.patient_phone || "";
+  if (!patientName || !patientPhone) {
+    const { data: pt } = await supabase
+      .from("patients")
+      .select("name, phone")
+      .eq("id", patientId)
+      .single();
+    if (pt) {
+      if (!patientName && pt.name) patientName = pt.name;
+      if (!patientPhone && pt.phone) patientPhone = pt.phone;
+    }
+  }
+
   const { data: caseData, error } = await supabase
     .from("cases")
     .insert({
@@ -716,8 +731,8 @@ async function createCase(
       intake_session_id: sessionId,
       chief_complaint: data.chief_complaint,
       structured_summary: JSON.stringify({
-        patient_name: data.patient_name,
-        patient_phone: data.patient_phone,
+        patient_name: patientName,
+        patient_phone: patientPhone,
         skin_concerns: data.skin_concerns,
         treatment_interests: data.treatment_interests,
         age_range: data.age_range,
