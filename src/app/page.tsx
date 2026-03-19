@@ -388,7 +388,7 @@ export default function IntakePage() {
                   placeholder={currentStep.placeholder || ""}
                   autoFocus
                   className="w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl border-2 border-slate-200 bg-white
-                    text-[13px] sm:text-sm text-slate-700 placeholder:text-slate-400
+                    text-base sm:text-sm text-slate-700 placeholder:text-slate-400
                     focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400
                     transition-all"
                 />
@@ -484,7 +484,7 @@ export default function IntakePage() {
               }
               disabled={sending}
               rows={1}
-              className="flex-1 resize-none rounded-xl border border-slate-300 px-3 sm:px-4 py-2.5 sm:py-3 text-[13px] sm:text-sm
+              className="flex-1 resize-none rounded-xl border border-slate-300 px-3 sm:px-4 py-2.5 sm:py-3 text-base sm:text-sm
                 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent
                 disabled:opacity-50 disabled:bg-slate-50"
               style={{ maxHeight: "100px" }}
