@@ -26,10 +26,13 @@ export const UI_STRINGS: Record<Lang, {
     previous_treatments: { question: string; options: Record<string, string> };
     retinoid_use: { question: string; options: Record<string, string> };
     pregnancy_status: { question: string; options: Record<string, string> };
+    upcoming_event: { question: string; options: Record<string, string> };
+    pain_sensitivity: { question: string; options: Record<string, string> };
+    downtime_preference: { question: string; options: Record<string, string> };
   };
 }> = {
   ko: {
-    greeting: "안녕하세요, 여러분의 자연스러운 아름다움을 함께하는 압구정튠의원 에이전튠(Agentune)입니다.\n\n맛집에 가기 전에 메뉴를 미리 보는 것처럼,\n상담 전에 고민을 미리 정리해 주시면\n담당 원장님이 처음부터 핵심에 집중할 수 있습니다.\n\n간단한 선택형 질문 9개와 짧은 대화로 약 2분이면 완료됩니다.\n\n편하게 어떤 피부 고민이 있으신지 말씀해 주세요.",
+    greeting: "안녕하세요, 여러분의 자연스러운 아름다움을 함께하는 압구정튠의원 에이전튠(Agentune)입니다.\n\n맛집에 가기 전에 메뉴를 미리 보는 것처럼,\n상담 전에 고민을 미리 정리해 주시면\n담당 원장님이 처음부터 핵심에 집중할 수 있습니다.\n\n간단한 선택형 질문 12개와 짧은 대화로 약 3분이면 완료됩니다.\n\n편하게 어떤 피부 고민이 있으신지 말씀해 주세요.",
     chiefComplaintPlaceholder: "편하게 피부 고민을 말씀해 주세요...",
     replyPlaceholder: "답변을 입력해 주세요...",
     nextButton: "다음",
@@ -60,11 +63,14 @@ export const UI_STRINGS: Record<Lang, {
       previous_treatments: { question: "이전에 피부 미용 시술을 받으신 적이 있으신가요?", options: { "있음": "있음", "없음": "없음" } },
       retinoid_use: { question: "레티놀(비타민A) 제품을 사용하고 계신가요?", options: { "사용 중": "사용 중", "사용 안 함": "사용 안 함", "모름": "잘 모르겠어요" } },
       pregnancy_status: { question: "임신 또는 수유 중이신가요?", options: { "해당 없음": "해당 없음", "임신 중": "임신 중", "수유 중": "수유 중" } },
+      upcoming_event: { question: "곧 중요한 일정이 있으신가요?", options: { "없음": "없음", "2주 이내": "2주 이내", "1개월 이내": "1개월 이내", "2~3개월 이내": "2~3개월 이내" } },
+      pain_sensitivity: { question: "통증에 민감하신 편인가요?", options: { "괜찮은 편": "괜찮은 편", "보통": "보통", "민감한 편": "민감한 편" } },
+      downtime_preference: { question: "시술 후 회복 기간(다운타임)이\n있어도 괜찮으신가요?", options: { "괜찮음": "괜찮아요", "최소화 희망": "최소화 희망", "불가": "바로 일상 복귀 원해요" } },
     },
   },
 
   en: {
-    greeting: "Hello, I'm Agentune from Apgujeong Tune Clinic — your partner in natural beauty.\n\nJust like checking the menu before visiting a great restaurant, sharing your concerns beforehand helps the doctor focus on what matters most from the start.\n\n9 quick-select questions and a short chat — about 2 minutes total.\n\nPlease tell me about your skin concerns.",
+    greeting: "Hello, I'm Agentune from Apgujeong Tune Clinic — your partner in natural beauty.\n\nJust like checking the menu before visiting a great restaurant, sharing your concerns beforehand helps the doctor focus on what matters most from the start.\n\n12 quick-select questions and a short chat — about 3 minutes total.\n\nPlease tell me about your skin concerns.",
     chiefComplaintPlaceholder: "Tell me about your skin concerns...",
     replyPlaceholder: "Type your answer...",
     nextButton: "Next",
@@ -95,11 +101,14 @@ export const UI_STRINGS: Record<Lang, {
       previous_treatments: { question: "Have you had cosmetic procedures before?", options: { "있음": "Yes", "없음": "No" } },
       retinoid_use: { question: "Are you using retinol (Vitamin A) products?", options: { "사용 중": "Yes", "사용 안 함": "No", "모름": "Not sure" } },
       pregnancy_status: { question: "Are you pregnant or breastfeeding?", options: { "해당 없음": "N/A", "임신 중": "Pregnant", "수유 중": "Breastfeeding" } },
+      upcoming_event: { question: "Do you have an important event coming up?", options: { "없음": "No", "2주 이내": "Within 2 weeks", "1개월 이내": "Within 1 month", "2~3개월 이내": "Within 2-3 months" } },
+      pain_sensitivity: { question: "How sensitive are you to pain?", options: { "괜찮은 편": "Not very", "보통": "Average", "민감한 편": "Very sensitive" } },
+      downtime_preference: { question: "Is recovery downtime okay?", options: { "괜찮음": "That's fine", "최소화 희망": "Prefer minimal", "불가": "Need immediate return" } },
     },
   },
 
   ja: {
-    greeting: "こんにちは、自然な美しさを一緒に追求する狎鷗亭チューンクリニックのエージェンチューン（Agentune）です。\n\n人気レストランに行く前にメニューを確認するように、カウンセリング前にお悩みを整理していただくと、院長が最初から要点に集中できます。\n\n簡単な選択式質問9個と短い会話で約2分で完了します。\n\nお肌のお悩みをお聞かせください。",
+    greeting: "こんにちは、自然な美しさを一緒に追求する狎鷗亭チューンクリニックのエージェンチューン（Agentune）です。\n\n人気レストランに行く前にメニューを確認するように、カウンセリング前にお悩みを整理していただくと、院長が最初から要点に集中できます。\n\n簡単な選択式質問12個と短い会話で約3分で完了します。\n\nお肌のお悩みをお聞かせください。",
     chiefComplaintPlaceholder: "お肌のお悩みをお聞かせください...",
     replyPlaceholder: "回答を入力してください...",
     nextButton: "次へ",
@@ -130,11 +139,14 @@ export const UI_STRINGS: Record<Lang, {
       previous_treatments: { question: "以前に美容施術を受けたことはありますか？", options: { "있음": "あり", "없음": "なし" } },
       retinoid_use: { question: "レチノール（ビタミンA）製品を使用していますか？", options: { "사용 중": "使用中", "사용 안 함": "使用していない", "모름": "わかりません" } },
       pregnancy_status: { question: "妊娠中または授乳中ですか？", options: { "해당 없음": "該当なし", "임신 중": "妊娠中", "수유 중": "授乳中" } },
+      upcoming_event: { question: "近々大事な予定はありますか？", options: { "없음": "なし", "2주 이내": "2週間以内", "1개월 이내": "1ヶ月以内", "2~3개월 이내": "2〜3ヶ月以内" } },
+      pain_sensitivity: { question: "痛みに敏感なほうですか？", options: { "괜찮은 편": "大丈夫", "보통": "普通", "민감한 편": "敏感" } },
+      downtime_preference: { question: "施術後の回復期間(ダウンタイム)\nがあっても大丈夫ですか？", options: { "괜찮음": "大丈夫", "최소화 희망": "最小限に", "불가": "すぐ日常復帰希望" } },
     },
   },
 
   zh: {
-    greeting: "您好，我是狎鸥亭Tune医院的Agentune——您追求自然美的伙伴。\n\n就像去人气餐厅前先看菜单一样，提前整理您的困扰，院长从一开始就能抓住重点。\n\n9道快速选择题和简短对话，大约2分钟即可完成。\n\n请告诉我您的皮肤困扰。",
+    greeting: "您好，我是狎鸥亭Tune医院的Agentune——您追求自然美的伙伴。\n\n就像去人气餐厅前先看菜单一样，提前整理您的困扰，院长从一开始就能抓住重点。\n\n12道快速选择题和简短对话，大约3分钟即可完成。\n\n请告诉我您的皮肤困扰。",
     chiefComplaintPlaceholder: "请告诉我您的皮肤困扰...",
     replyPlaceholder: "请输入您的回答...",
     nextButton: "下一步",
@@ -165,6 +177,9 @@ export const UI_STRINGS: Record<Lang, {
       previous_treatments: { question: "您之前做过医美项目吗？", options: { "있음": "做过", "없음": "没有" } },
       retinoid_use: { question: "您在使用视黄醇（维生素A）产品吗？", options: { "사용 중": "在使用", "사용 안 함": "未使用", "모름": "不清楚" } },
       pregnancy_status: { question: "您是否怀孕或哺乳中？", options: { "해당 없음": "不适用", "임신 중": "怀孕中", "수유 중": "哺乳中" } },
+      upcoming_event: { question: "近期有重要活动吗？", options: { "없음": "没有", "2주 이내": "2周内", "1개월 이내": "1个月内", "2~3개월 이내": "2-3个月内" } },
+      pain_sensitivity: { question: "您对疼痛敏感吗？", options: { "괜찮은 편": "还好", "보통": "一般", "민감한 편": "比较敏感" } },
+      downtime_preference: { question: "术后恢复期(停工期)\n可以接受吗？", options: { "괜찮음": "可以", "최소화 희망": "希望尽量短", "불가": "需要立即恢复日常" } },
     },
   },
 };

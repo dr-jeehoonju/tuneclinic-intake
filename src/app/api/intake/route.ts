@@ -190,6 +190,9 @@ async function handleQuickCollect(
   if (data.previous_treatments) fieldsCollected.push("previous_treatments");
   if (data.retinoid_use) fieldsCollected.push("current_skincare");
   if (data.pregnancy_status) fieldsCollected.push("pregnancy_status");
+  if (data.upcoming_event) fieldsCollected.push("upcoming_event");
+  if (data.pain_sensitivity) fieldsCollected.push("pain_sensitivity");
+  if (data.downtime_preference) fieldsCollected.push("downtime_preference");
 
   const fieldsMissing = computeMissingFields(fieldsCollected);
 
@@ -615,6 +618,12 @@ function buildQuickSummary(data: QuickCollectData): string {
     lines.push(`- 레티놀/비타민A 사용: ${data.retinoid_use} (확인 완료 — 다시 묻지 마세요)`);
   if (data.pregnancy_status)
     lines.push(`- 임신/수유: ${data.pregnancy_status} (확인 완료 — 다시 묻지 마세요)`);
+  if (data.upcoming_event)
+    lines.push(`- 다가오는 일정: ${data.upcoming_event} (확인 완료 — 다시 묻지 마세요)`);
+  if (data.pain_sensitivity)
+    lines.push(`- 통증 민감도: ${data.pain_sensitivity} (확인 완료 — 다시 묻지 마세요)`);
+  if (data.downtime_preference)
+    lines.push(`- 다운타임 선호: ${data.downtime_preference} (확인 완료 — 다시 묻지 마세요)`);
   return lines.join("\n");
 }
 
@@ -842,6 +851,9 @@ async function forceCompleteIntake(
     gender: data?.gender === "여성" ? "female" : data?.gender === "남성" ? "male" : "unknown",
     previous_treatments: data?.previous_treatments || "",
     pregnancy_status: data?.pregnancy_status === "임신 중" ? "pregnant" : data?.pregnancy_status === "수유 중" ? "breastfeeding" : "not_pregnant",
+    upcoming_event: data?.upcoming_event || "",
+    pain_sensitivity: data?.pain_sensitivity || "",
+    downtime_ok: data?.downtime_preference || "",
     fields_collected: fieldsCollected,
     fields_missing: computeMissingFields(fieldsCollected),
     risk_flags: [],

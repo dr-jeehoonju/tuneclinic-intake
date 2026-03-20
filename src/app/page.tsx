@@ -34,6 +34,12 @@ function getQuickSteps(lang: Lang): QuickStep[] {
       options: Object.entries(t.retinoid_use.options).map(([value, label]) => ({ label, value })) },
     { id: "pregnancy_status", question: t.pregnancy_status.question, type: "single",
       options: Object.entries(t.pregnancy_status.options).map(([value, label]) => ({ label, value })) },
+    { id: "upcoming_event", question: t.upcoming_event.question, type: "single",
+      options: Object.entries(t.upcoming_event.options).map(([value, label]) => ({ label, value })) },
+    { id: "pain_sensitivity", question: t.pain_sensitivity.question, type: "single",
+      options: Object.entries(t.pain_sensitivity.options).map(([value, label]) => ({ label, value })) },
+    { id: "downtime_preference", question: t.downtime_preference.question, type: "single",
+      options: Object.entries(t.downtime_preference.options).map(([value, label]) => ({ label, value })) },
   ];
 }
 
@@ -190,6 +196,9 @@ export default function IntakePage() {
       previous_treatments: allData.previous_treatments?.[0] || "",
       retinoid_use: allData.retinoid_use?.[0] || "",
       pregnancy_status: allData.pregnancy_status?.[0] || "",
+      upcoming_event: allData.upcoming_event?.[0] || "",
+      pain_sensitivity: allData.pain_sensitivity?.[0] || "",
+      downtime_preference: allData.downtime_preference?.[0] || "",
     };
 
     // Add a summary message to chat

@@ -33,6 +33,9 @@ export interface QuickCollectData {
   previous_treatments: string;
   retinoid_use: string;
   pregnancy_status: string;
+  upcoming_event: string;
+  pain_sensitivity: string;
+  downtime_preference: string;
 }
 
 export interface IntakeSession {
