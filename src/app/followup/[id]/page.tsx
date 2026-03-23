@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import { siteConfig } from "@/lib/site-config";
 
 const SIDE_EFFECT_OPTIONS = [
   { label: "붓기 / 부종", value: "swelling" },
@@ -118,10 +119,10 @@ export default function FollowupPage({ params }: { params: Promise<{ id: string 
       <div className="max-w-md mx-auto">
         <div className="text-center mb-6">
           <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-3">
-            <span className="text-amber-700 font-bold text-[9px] leading-tight">에이전<br />튠</span>
+            <span className="text-amber-700 font-bold text-[9px] leading-tight">{siteConfig.followupLogoLine1Ko}<br />{siteConfig.followupLogoLine2Ko}</span>
           </div>
           <h1 className="text-xl font-bold text-slate-900">시술 후 만족도 조사</h1>
-          <p className="text-sm text-slate-500 mt-1">압구정튠의원</p>
+          <p className="text-sm text-slate-500 mt-1">{siteConfig.followupClinicLine}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border p-6 space-y-6">

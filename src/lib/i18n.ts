@@ -1,3 +1,5 @@
+import { siteConfig, getHeaderTitleKo, getGreetingBrandLineKo } from "@/lib/site-config";
+
 export type Lang = "ko" | "en" | "ja" | "zh";
 
 export const UI_STRINGS: Record<Lang, {
@@ -183,6 +185,75 @@ export const UI_STRINGS: Record<Lang, {
     },
   },
 };
+
+const KO_GREETING_TAIL =
+  "맛집에 가기 전에 메뉴를 미리 보는 것처럼,\n상담 전에 고민을 미리 정리해 주시면\n담당 원장님이 처음부터 핵심에 집중할 수 있습니다.\n\n간단한 선택형 질문 12개와 짧은 대화로 약 3분이면 완료됩니다.\n\n편하게 어떤 피부 고민이 있으신지 말씀해 주세요.";
+
+const EN_GREETING_TAIL =
+  "\n\nJust like checking the menu before visiting a great restaurant, sharing your concerns beforehand helps the doctor focus on what matters most from the start.\n\n12 quick-select questions and a short chat — about 3 minutes total.\n\nPlease tell me about your skin concerns.";
+
+const JA_GREETING_TAIL =
+  "\n\n人気レストランに行く前にメニューを確認するように、カウンセリング前にお悩みを整理していただくと、院長が最初から要点に集中できます。\n\n簡単な選択式質問12個と短い会話で約3分で完了します。\n\nお肌のお悩みをお聞かせください。";
+
+const ZH_GREETING_TAIL =
+  "\n\n就像去人气餐厅前先看菜单一样，提前整理您的困扰，院长从一开始就能抓住重点。\n\n12道快速选择题和简短对话，大约3分钟即可完成。\n\n请告诉我您的皮肤困扰。";
+
+function buildGreetingKo(): string {
+  if (siteConfig.greetingKoOverride) return siteConfig.greetingKoOverride;
+  return `안녕하세요, 여러분의 자연스러운 아름다움을 함께하는 ${getGreetingBrandLineKo()}입니다.\n\n${KO_GREETING_TAIL}`;
+}
+
+function buildGreetingEn(): string {
+  if (siteConfig.greetingEnOverride) return siteConfig.greetingEnOverride;
+  return `Hello, I'm ${siteConfig.assistantNameEn} from ${siteConfig.clinicNameEn} — your partner in natural beauty.${EN_GREETING_TAIL}`;
+}
+
+function buildGreetingJa(): string {
+  if (siteConfig.greetingJaOverride) return siteConfig.greetingJaOverride;
+  return `こんにちは、自然な美しさを一緒に追求する${siteConfig.clinicNameJa}の${siteConfig.assistantNameJa}（${siteConfig.assistantNameEn}）です。${JA_GREETING_TAIL}`;
+}
+
+function buildGreetingZh(): string {
+  if (siteConfig.greetingZhOverride) return siteConfig.greetingZhOverride;
+  return `您好，我是${siteConfig.clinicNameZh}的${siteConfig.assistantNameZh}——您追求自然美的伙伴。${ZH_GREETING_TAIL}`;
+}
+
+export type UiStrings = (typeof UI_STRINGS)[Lang];
+
+export function getUiStrings(lang: Lang): UiStrings {
+  const phone = siteConfig.clinicPhone;
+  const base = UI_STRINGS[lang];
+  if (lang === "ko") {
+    return {
+      ...base,
+      greeting: buildGreetingKo(),
+      headerTitle: getHeaderTitleKo(),
+      escalationMessage: `긴급 상황으로 안내가 중단되었습니다. 병원(${phone})으로 연락해 주세요.`,
+    };
+  }
+  if (lang === "en") {
+    return {
+      ...base,
+      greeting: buildGreetingEn(),
+      headerTitle: siteConfig.headerTitleEn,
+      escalationMessage: `This requires urgent attention. Please call the clinic at ${phone} or visit the nearest ER.`,
+    };
+  }
+  if (lang === "ja") {
+    return {
+      ...base,
+      greeting: buildGreetingJa(),
+      headerTitle: siteConfig.headerTitleJa,
+      escalationMessage: `緊急の状況です。クリニック(${phone})にお電話いただくか、最寄りの救急病院を受診してください。`,
+    };
+  }
+  return {
+    ...base,
+    greeting: buildGreetingZh(),
+    headerTitle: siteConfig.headerTitleZh,
+    escalationMessage: `情况紧急，请立即拨打医院电话 ${phone} 或前往最近的急诊室。`,
+  };
+}
 
 export function detectLang(param: string | null): Lang {
   if (param === "en" || param === "ja" || param === "zh") return param;

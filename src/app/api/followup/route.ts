@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { siteConfig } from "@/lib/site-config";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -118,7 +119,7 @@ async function notifyPhysicianFollowup(
 ) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
 
-  const text = `[에이전튠 후속 조사 - 부작용 보고]
+  const text = `[${siteConfig.telegramPrefix} 후속 조사 - 부작용 보고]
 환자: ${patientName || "미제공"}
 주 호소: ${chiefComplaint || ""}
 만족도: ${"⭐".repeat(rating)} (${rating}/5)

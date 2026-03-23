@@ -1,4 +1,5 @@
 import type { SafetyLevel } from "./types";
+import { siteConfig } from "@/lib/site-config";
 
 const EMERGENCY_KEYWORDS = [
   // Korean
@@ -84,11 +85,13 @@ export function checkSafetyKeywords(message: string): {
   return { level: "clear", matchedKeywords: [] };
 }
 
-export const EMERGENCY_RESPONSE = `말씀하신 증상은 빠른 확인이 필요한 상황일 수 있습니다.
+export function getEmergencyResponse(): string {
+  return `말씀하신 증상은 빠른 확인이 필요한 상황일 수 있습니다.
 
-지금 바로 병원(02-540-8011)으로 연락해 주시거나, 증상이 심하시면 가까운 응급실을 방문해 주세요.
+지금 바로 병원(${siteConfig.clinicPhone})으로 연락해 주시거나, 증상이 심하시면 가까운 응급실을 방문해 주세요.
 
 상담은 여기서 일시 중단하겠습니다. 안전이 가장 중요합니다.`;
+}
 
 export function buildFlagInjection(matchedKeywords: string[]): string {
   return `\n[SYSTEM NOTICE: 환자 메시지에서 다음 키워드가 감지되었습니다: ${matchedKeywords.join(", ")}. 

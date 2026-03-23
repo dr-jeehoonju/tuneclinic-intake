@@ -9,10 +9,11 @@ import {
   COMPLETION_MESSAGE,
 } from "@/lib/prompts";
 import { detectLang, type Lang } from "@/lib/i18n";
+import { siteConfig } from "@/lib/site-config";
 import { COMPLETE_INTAKE_TOOL } from "@/lib/tools";
 import {
   checkSafetyKeywords,
-  EMERGENCY_RESPONSE,
+  getEmergencyResponse,
   buildFlagInjection,
 } from "@/lib/safety";
 import { getTreatmentGuidePrompt } from "@/lib/treatment-guides";
@@ -164,10 +165,10 @@ async function handleQuickCollect(
     await saveMessage(sessionId, "patient", data.chief_complaint, "greeting", 0);
     await transitionState(sessionId, "greeting", "escalated", 0);
     const seq = await getNextSequenceNumber(sessionId);
-    await saveMessage(sessionId, "assistant", EMERGENCY_RESPONSE, "escalated", seq);
+    await saveMessage(sessionId, "assistant", getEmergencyResponse(), "escalated", seq);
     await notifyPhysician(sessionId, "EMERGENCY", safety.matchedKeywords);
     return NextResponse.json({
-      reply: EMERGENCY_RESPONSE,
+      reply: getEmergencyResponse(),
       state: "escalated",
       session_id: sessionId,
       is_complete: false,
@@ -387,7 +388,7 @@ async function handleMessage(
 
   if (["complete", "escalated", "abandoned"].includes(s.current_state)) {
     return NextResponse.json({
-      reply: s.current_state === "escalated" ? EMERGENCY_RESPONSE : COMPLETION_MESSAGE,
+      reply: s.current_state === "escalated" ? getEmergencyResponse() : COMPLETION_MESSAGE,
       state: s.current_state,
       session_id: sessionId,
       is_complete: s.current_state === "complete",
@@ -407,14 +408,14 @@ async function handleMessage(
   if (safety.level === "emergency") {
     await transitionState(sessionId, s.current_state, "escalated", newExchange);
     const seq = await getNextSequenceNumber(sessionId);
-    await saveMessage(sessionId, "assistant", EMERGENCY_RESPONSE, "escalated", seq);
+    await saveMessage(sessionId, "assistant", getEmergencyResponse(), "escalated", seq);
     await logAuditEvent("escalation_triggered", "agent_intake", "intake_session", sessionId, {
       matched_keywords: safety.matchedKeywords,
     });
     await notifyPhysician(sessionId, "EMERGENCY", safety.matchedKeywords);
 
     return NextResponse.json({
-      reply: EMERGENCY_RESPONSE,
+      reply: getEmergencyResponse(),
       state: "escalated",
       session_id: sessionId,
       is_complete: false,
@@ -902,7 +903,7 @@ async function notifyPhysician(sessionId: string, urgency: string, flags: string
   }
 
   const flagText = flags.length > 0 ? `\nFlags: ${flags.join(", ")}` : "\nFlags: 없음";
-  const text = `[에이전튠] ${urgency}\nSession: ${sessionId}${patientInfo}${flagText}`;
+  const text = `[${siteConfig.telegramPrefix}] ${urgency}\nSession: ${sessionId}${patientInfo}${flagText}`;
 
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {

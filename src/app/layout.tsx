@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
+import { siteConfig } from "@/lib/site-config";
 
 const notoSansKr = Noto_Sans_KR({
   variable: "--font-noto-kr",
@@ -9,8 +10,8 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "압구정튠의원 상담",
-  description: "대면 상담 전 피부 고민을 미리 정리해 드립니다.",
+  title: siteConfig.pageTitle,
+  description: siteConfig.pageDescription,
 };
 
 export const viewport: Viewport = {

@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { QuickStep, QuickCollectData } from "@/lib/types";
-import { UI_STRINGS, detectLang, type Lang } from "@/lib/i18n";
+import { getUiStrings, detectLang, type Lang } from "@/lib/i18n";
+import { siteConfig } from "@/lib/site-config";
 
 // ---- Quick Collect Step Definitions ----
 
 function getQuickSteps(lang: Lang): QuickStep[] {
-  const t = UI_STRINGS[lang].steps;
+  const t = getUiStrings(lang).steps;
   return [
     { id: "patient_name", question: t.patient_name.question, type: "text", options: [], placeholder: t.patient_name.placeholder },
     { id: "patient_phone", question: t.patient_phone.question, type: "text", options: [], placeholder: t.patient_phone.placeholder },
@@ -309,7 +310,7 @@ export default function IntakePage() {
   const isGreeting = pageState === "chief_complaint" && messages.length === 1;
   const quickSteps = getQuickSteps(lang);
   const currentStep = quickSteps[quickStep];
-  const t = UI_STRINGS[lang];
+  const t = getUiStrings(lang);
 
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto">
@@ -322,7 +323,7 @@ export default function IntakePage() {
           </svg>
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate">{t.headerTitle} <span className="text-[11px] sm:text-xs font-normal text-slate-400">Agentune</span></h1>
+          <h1 className="text-sm sm:text-base font-bold text-slate-900 truncate">{t.headerTitle} <span className="text-[11px] sm:text-xs font-normal text-slate-400">{siteConfig.assistantBadgeEn}</span></h1>
           <p className="text-[11px] sm:text-xs text-slate-500 truncate">
             {isTerminal
               ? pageState === "complete" ? t.headerSubtitleComplete : t.headerSubtitleEscalated
