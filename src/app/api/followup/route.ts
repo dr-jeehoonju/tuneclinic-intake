@@ -30,8 +30,9 @@ export async function GET(req: NextRequest) {
 
   const { data: existing } = await supabase
     .from("follow_up_sessions")
-    .select("id")
+    .select("id, patient_response")
     .eq("case_id", caseId)
+    .not("patient_response", "is", null)
     .limit(1);
 
   return NextResponse.json({
@@ -39,6 +40,11 @@ export async function GET(req: NextRequest) {
     chief_complaint: caseData.chief_complaint,
     patient_name: patientName,
     already_submitted: existing && existing.length > 0,
+    branding: {
+      clinicLine: siteConfig.followupClinicLine,
+      logoLine1: siteConfig.followupLogoLine1Ko,
+      logoLine2: siteConfig.followupLogoLine2Ko,
+    },
   });
 }
 
@@ -66,32 +72,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });
     }
 
-    // Prevent duplicate submissions
+    // Check if there's already a completed survey for this case
     const { data: existing } = await supabase
       .from("follow_up_sessions")
-      .select("id")
+      .select("id, patient_response")
       .eq("case_id", case_id)
+      .not("patient_response", "is", null)
       .limit(1);
 
     if (existing && existing.length > 0) {
       return NextResponse.json({ error: "Already submitted" }, { status: 409 });
     }
 
-    const { error: insertErr } = await supabase.from("follow_up_sessions").insert({
-      case_id,
-      patient_id: caseData.patient_id,
+    const responsePayload = JSON.stringify({
       rating: parsedRating,
       comment: comment || null,
       side_effects: side_effects || [],
-      created_at: new Date().toISOString(),
+      submitted_at: new Date().toISOString(),
     });
 
-    if (insertErr) {
-      console.error("Follow-up insert error:", insertErr);
-      return NextResponse.json({ error: "Failed to save" }, { status: 500 });
+    // Try to update an existing scheduled row, otherwise insert a new one
+    const { data: scheduledRow } = await supabase
+      .from("follow_up_sessions")
+      .select("id")
+      .eq("case_id", case_id)
+      .is("patient_response", null)
+      .limit(1)
+      .single();
+
+    if (scheduledRow) {
+      const { error: updateErr } = await supabase
+        .from("follow_up_sessions")
+        .update({
+          patient_response: responsePayload,
+          status: "responded",
+          responded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", scheduledRow.id);
+
+      if (updateErr) {
+        console.error("Follow-up update error:", updateErr);
+        return NextResponse.json({ error: "Failed to save" }, { status: 500 });
+      }
+    } else {
+      const { error: insertErr } = await supabase
+        .from("follow_up_sessions")
+        .insert({
+          case_id,
+          check_in_type: "day_1",
+          scheduled_at: new Date().toISOString(),
+          patient_response: responsePayload,
+          status: "responded",
+          responded_at: new Date().toISOString(),
+        });
+
+      if (insertErr) {
+        console.error("Follow-up insert error:", insertErr);
+        return NextResponse.json({ error: "Failed to save" }, { status: 500 });
+      }
     }
 
-    // Notify physician if side effects reported
     if (side_effects && side_effects.length > 0) {
       let patientName = "";
       try {

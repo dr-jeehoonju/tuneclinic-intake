@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import { siteConfig } from "@/lib/site-config";
 
 const SIDE_EFFECT_OPTIONS = [
   { label: "붓기 / 부종", value: "swelling" },
@@ -14,11 +13,24 @@ const SIDE_EFFECT_OPTIONS = [
 
 type FollowupState = "loading" | "form" | "submitted" | "already_submitted" | "error";
 
+interface Branding {
+  clinicLine: string;
+  logoLine1: string;
+  logoLine2: string;
+}
+
+const DEFAULT_BRANDING: Branding = {
+  clinicLine: "압구정튠의원",
+  logoLine1: "에이전",
+  logoLine2: "튠",
+};
+
 export default function FollowupPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: caseId } = use(params);
   const [state, setState] = useState<FollowupState>("loading");
   const [patientName, setPatientName] = useState("");
   const [chiefComplaint, setChiefComplaint] = useState("");
+  const [branding, setBranding] = useState<Branding>(DEFAULT_BRANDING);
 
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
@@ -34,6 +46,7 @@ export default function FollowupPage({ params }: { params: Promise<{ id: string 
         if (data.already_submitted) { setState("already_submitted"); return; }
         setPatientName(data.patient_name || "");
         setChiefComplaint(data.chief_complaint || "");
+        if (data.branding) setBranding(data.branding);
         setState("form");
       })
       .catch(() => setState("error"));
@@ -119,10 +132,10 @@ export default function FollowupPage({ params }: { params: Promise<{ id: string 
       <div className="max-w-md mx-auto">
         <div className="text-center mb-6">
           <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-3">
-            <span className="text-amber-700 font-bold text-[9px] leading-tight">{siteConfig.followupLogoLine1Ko}<br />{siteConfig.followupLogoLine2Ko}</span>
+            <span className="text-amber-700 font-bold text-[9px] leading-tight">{branding.logoLine1}<br />{branding.logoLine2}</span>
           </div>
           <h1 className="text-xl font-bold text-slate-900">시술 후 만족도 조사</h1>
-          <p className="text-sm text-slate-500 mt-1">{siteConfig.followupClinicLine}</p>
+          <p className="text-sm text-slate-500 mt-1">{branding.clinicLine}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border p-6 space-y-6">
